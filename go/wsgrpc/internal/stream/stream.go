@@ -6,18 +6,11 @@ import (
 	"io"
 	"sync"
 
+	"github.com/grpcws/wsgrpc/frame"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-)
-
-// Frame type constants. Duplicated here to avoid importing the frame package
-// before it exists; will be replaced by frame.TypeXxx constants in a later commit.
-const (
-	typHEADER = uint8(0x06)
-	typMSG    = uint8(0x02)
-	typEND    = uint8(0x03)
 )
 
 // Sink is the outbound write interface. Implemented by conn.Conn in production
@@ -75,7 +68,7 @@ func (s *Stream) SendEnd(err error) error {
 	st, _ := status.FromError(err)
 	code := uint32(st.Code())
 	payload := []byte{byte(code >> 24), byte(code >> 16), byte(code >> 8), byte(code)}
-	return s.sink.WriteFrame(typEND, s.streamID, payload)
+	return s.sink.WriteFrame(frame.TypeEND, s.streamID, payload)
 }
 
 // --- grpc.ServerStream interface ---
@@ -121,7 +114,7 @@ func (s *Stream) SendMsg(m any) error {
 	if err != nil {
 		return err
 	}
-	return s.sink.WriteFrame(typMSG, s.streamID, b)
+	return s.sink.WriteFrame(frame.TypeMSG, s.streamID, b)
 }
 
 func (s *Stream) RecvMsg(m any) error {
@@ -135,7 +128,7 @@ func (s *Stream) RecvMsg(m any) error {
 // flushHeaderLocked sends a HEADER frame. Called with s.mu held.
 // TODO: encode s.header into HeaderPayload proto once the frame package exists.
 func (s *Stream) flushHeaderLocked() error {
-	if err := s.sink.WriteFrame(typHEADER, s.streamID, nil); err != nil {
+	if err := s.sink.WriteFrame(frame.TypeHEADER, s.streamID, nil); err != nil {
 		return err
 	}
 	s.headerSent = true
