@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package grpcws.frame.v1;
+
+option go_package = "github.com/grpcws/wsgrpc/frame/v1;framev1";
+
+// Payload for a BEGIN frame. Sent by the client to open a stream.
+message BeginPayload {
+  // Full gRPC method path: "/package.ServiceName/MethodName"
+  string method = 1;
+  // Request metadata (equivalent to gRPC request headers).
+  map<string, string> metadata = 2;
+}
+
+// Payload for a HEADER frame. Sent by the server before the first MSG.
+message HeaderPayload {
+  // Server initial metadata (response headers).
+  map<string, string> headers = 1;
+}
+
+// Payload for an END or RESET frame.
+message EndPayload {
+  // gRPC status code. 0 = OK.
+  uint32 status_code = 1;
+  // Human-readable status message. Empty on success.
+  string status_message = 2;
+  // Trailing metadata from the server handler.
+  map<string, string> trailers = 3;
+}

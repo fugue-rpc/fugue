@@ -1,0 +1,10 @@
+version: v2
+inputs:
+  - directory: proto
+plugins:
+  - local: ["node", "node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es"]
+    out: gen/ts
+    opt: target=ts
+  - local: ["node", "packages/protoc-gen-wsgrpc/dist/index.js"]
+    out: gen/ts
+    opt: target=ts

@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Bash(go version *)",
+      "Bash(pnpm --version)",
+      "Bash(buf --version)",
+      "Bash(npm --version)"
     ]
   }
 }

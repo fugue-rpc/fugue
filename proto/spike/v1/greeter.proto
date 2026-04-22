@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package spike.v1;
+
+// Spike B: minimal proto for validating protoc-gen-wsgrpc output.
+// Covers all 4 method kinds so we can verify methodKind dispatch.
+service Greeter {
+  // unary
+  rpc SayHello(HelloRequest) returns (HelloReply);
+  // server streaming
+  rpc ListReplies(HelloRequest) returns (stream HelloReply);
+  // client streaming
+  rpc CollectHellos(stream HelloRequest) returns (HelloReply);
+  // bidi streaming
+  rpc Chat(stream HelloRequest) returns (stream HelloReply);
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}
