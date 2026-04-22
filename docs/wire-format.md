@@ -80,8 +80,9 @@ A frame with `payload_length > MAX_PAYLOAD_SIZE` is a protocol error. The receiv
 | `END`    | `0x03` | client ↔ server  | Half-close or fully close a stream with gRPC status|
 | `RESET`  | `0x04` | client ↔ server  | Abort a stream immediately                         |
 | —        | `0x05` | —                | **Reserved.** v0.1 receivers MUST treat as a protocol error. Reserved for future application-layer PING/keepalive. |
+| `HEADER` | `0x06` | server → client  | Server response headers (initial metadata), sent before the first MSG |
 
-Frame type values not listed above (`0x00`, `0x06`–`0xFF`) are undefined. Receiving an undefined frame type is a protocol error.
+Frame type values not listed above (`0x00`, `0x07`–`0xFF`) are undefined. Receiving an undefined frame type is a protocol error.
 
 ---
 
@@ -138,7 +139,20 @@ Aborts a stream immediately, regardless of current state. No further frames shou
 - Receiving a RESET for an **unknown** stream ID (stream already closed or never opened): **silently drop it**. This is not a protocol error — it occurs in normal operation when END and RESET cross in flight.
 - Receiving a RESET for a known open stream: cancel the stream, free all resources.
 
-### 4.5 Type 0x05 — Reserved
+### 4.5 HEADER
+
+**Direction:** server → client  
+**Payload:** serialized `HeaderPayload` proto message (see §6)
+
+Carries server response headers (initial metadata) before the first MSG frame. Sending a HEADER frame is optional — if the server handler never calls `SendHeader` or `SetHeader`, no HEADER frame is sent and the client treats initial metadata as empty.
+
+Rules:
+- A server MUST send at most one HEADER frame per stream.
+- A HEADER frame MUST be sent before any MSG frame in the server → client direction. Sending HEADER after MSG is a protocol error.
+- If the server calls `SendMsg` without first calling `SendHeader`, the implementation MUST auto-flush an empty HEADER frame before sending the MSG frame.
+- The client MUST be prepared to receive a HEADER frame at any point before the first server MSG.
+
+### 4.7 Type 0x05 — Reserved
 
 Receiving a frame with type `0x05` is a protocol error in v0.1. Close the WebSocket with code 1002.
 
@@ -255,6 +269,13 @@ message BeginPayload {
   map<string, string> metadata = 2;
 }
 
+// Payload for a HEADER frame. Sent by the server before the first MSG.
+message HeaderPayload {
+  // Server initial metadata (response headers).
+  // Keys follow the same conventions as BeginPayload.metadata.
+  map<string, string> headers = 1;
+}
+
 // Payload for an END frame and optionally a RESET frame.
 message EndPayload {
   // gRPC status code. 0 = OK. See https://grpc.github.io/grpc/core/md_doc_statuscodes.html
@@ -317,6 +338,8 @@ A **protocol error** is any violation of this specification. When a protocol err
 | MSG or END for unknown (closed/unseen) stream ID   | Stream         | RESET (INTERNAL), close WS 1002           |
 | BEGIN for an already-open stream ID                | Connection     | Close WebSocket code 1002                 |
 | MSG sent after END in the same direction           | Stream         | RESET (INTERNAL), close WS 1002           |
+| HEADER sent after MSG in the server → client direction | Stream     | RESET (INTERNAL), close WS 1002           |
+| More than one HEADER frame sent on a stream        | Stream         | RESET (INTERNAL), close WS 1002           |
 
 **Exception:** RESET received for an unknown stream ID is silently dropped (not a protocol error). See §4.4.
 
