@@ -3,6 +3,7 @@ module github.com/grpcws/wsgrpc
 go 1.26.1
 
 require (
+	github.com/coder/websocket v1.8.14 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
