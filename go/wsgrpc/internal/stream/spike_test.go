@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
 	"github.com/grpcws/wsgrpc/internal/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -419,13 +420,15 @@ func TestErrorStatusPropagation(t *testing.T) {
 		t.Fatalf("want 1 END frame, got frames: %v", types)
 	}
 
-	// Decode the 4-byte status code from the END payload.
-	payload := sink.frames[0].payload
-	if len(payload) != 4 {
-		t.Fatalf("END payload: want 4 bytes, got %d", len(payload))
+	// Decode EndPayload proto from the END frame.
+	var ep framev1.EndPayload
+	if err := proto.Unmarshal(sink.frames[0].payload, &ep); err != nil {
+		t.Fatalf("unmarshal EndPayload: %v", err)
 	}
-	code := codes.Code(uint32(payload[0])<<24 | uint32(payload[1])<<16 | uint32(payload[2])<<8 | uint32(payload[3]))
-	if code != codes.NotFound {
-		t.Errorf("status code: want %v, got %v", codes.NotFound, code)
+	if got := codes.Code(ep.StatusCode); got != codes.NotFound {
+		t.Errorf("status code: want %v, got %v", codes.NotFound, got)
+	}
+	if ep.StatusMessage != "method not found" {
+		t.Errorf("status message: want %q, got %q", "method not found", ep.StatusMessage)
 	}
 }

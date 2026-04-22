@@ -216,7 +216,7 @@ _LOCAL        _REMOTE
 | `HALF_CLOSED_LOCAL` | RESET sent or received         | `CLOSED`            | free stream resources           |
 | `HALF_CLOSED_REMOTE`| client sends END               | `CLOSED`            | stream fully done               |
 | `HALF_CLOSED_REMOTE`| RESET sent or received         | `CLOSED`            | free stream resources           |
-| `CLOSED`            | any frame arrives for this ID  | —                   | protocol error (except RESET → drop) |
+| `CLOSED`            | any frame arrives for this ID  | —                   | silently drop (MSG/END/RESET are all in-flight races, not errors) |
 
 ### 5.3 Per-RPC-Type Frame Sequences
 
@@ -335,13 +335,13 @@ A **protocol error** is any violation of this specification. When a protocol err
 | Frame type `0x05`                                  | Connection     | Close WebSocket code 1002                 |
 | Binary WebSocket frame with `payload_length` inconsistent with WebSocket frame length | Connection | Close WebSocket code 1002 |
 | Text WebSocket frame                               | Connection     | Close WebSocket code 1002                 |
-| MSG or END for unknown (closed/unseen) stream ID   | Stream         | RESET (INTERNAL), close WS 1002           |
+| MSG or END for unknown (closed/unseen) stream ID   | —              | Silently dropped (same in-flight race as RESET; not a protocol error) |
 | BEGIN for an already-open stream ID                | Connection     | Close WebSocket code 1002                 |
 | MSG sent after END in the same direction           | Stream         | RESET (INTERNAL), close WS 1002           |
 | HEADER sent after MSG in the server → client direction | Stream     | RESET (INTERNAL), close WS 1002           |
 | More than one HEADER frame sent on a stream        | Stream         | RESET (INTERNAL), close WS 1002           |
 
-**Exception:** RESET received for an unknown stream ID is silently dropped (not a protocol error). See §4.4.
+**Exception:** RESET, MSG, and END received for an unknown or already-closed stream ID are silently dropped. These are not protocol errors — they occur in normal operation when frames cross in flight (e.g. a MSG sent by the client before it received the server's END). Closing the connection in response would kill all other live streams on the connection for no reason. See §4.4.
 
 ---
 

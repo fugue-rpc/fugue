@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"sync/atomic"
 
 	"github.com/coder/websocket"
 	"github.com/grpcws/wsgrpc/frame"
@@ -17,8 +16,8 @@ import (
 // Conn manages one WebSocket connection and the streams multiplexed over it.
 type Conn struct {
 	ws        *websocket.Conn
-	streams   sync.Map     // map[uint32]*stream.Stream
-	highestID atomic.Uint32
+	streams   sync.Map // map[uint32]*stream.Stream
+	highestID uint32   // only written by Serve's single read loop, no lock needed
 	writeMu   sync.Mutex
 	log       *slog.Logger
 
@@ -78,17 +77,12 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 		_ = c.ws.Close(websocket.StatusProtocolError, "stream_id 0 is reserved")
 		return fmt.Errorf("conn: stream_id 0 is reserved")
 	}
-	// Enforce monotonically increasing stream IDs (spec §5.1).
-	for {
-		highest := c.highestID.Load()
-		if id <= highest {
-			_ = c.ws.Close(websocket.StatusProtocolError, "non-monotonic stream_id")
-			return fmt.Errorf("conn: stream_id %d not monotonically increasing (highest: %d)", id, highest)
-		}
-		if c.highestID.CompareAndSwap(highest, id) {
-			break
-		}
+	// Serve is single-goroutine so highestID is safe without a lock.
+	if id <= c.highestID {
+		_ = c.ws.Close(websocket.StatusProtocolError, "non-monotonic stream_id")
+		return fmt.Errorf("conn: stream_id %d not monotonically increasing (highest: %d)", id, c.highestID)
 	}
+	c.highestID = id
 
 	sCtx, cancel := context.WithCancel(ctx)
 	s := stream.New(sCtx, cancel, id, c)
@@ -103,30 +97,32 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 	return nil
 }
 
+// handleMSG silently drops frames for unknown/closed streams. A MSG arriving
+// after the handler returned is an in-flight race, not a protocol error.
 func (c *Conn) handleMSG(f frame.Frame) error {
 	s, ok := c.loadStream(f.StreamID)
 	if !ok {
-		_ = c.ws.Close(websocket.StatusProtocolError, "MSG for unknown stream")
-		return fmt.Errorf("conn: MSG for unknown stream_id %d", f.StreamID)
+		return nil
 	}
 	s.Deliver(f.Payload)
 	return nil
 }
 
+// handleEND silently drops frames for unknown/closed streams for the same
+// reason as handleMSG.
 func (c *Conn) handleEND(f frame.Frame) error {
 	s, ok := c.loadStream(f.StreamID)
 	if !ok {
-		_ = c.ws.Close(websocket.StatusProtocolError, "END for unknown stream")
-		return fmt.Errorf("conn: END for unknown stream_id %d", f.StreamID)
+		return nil
 	}
-	s.CloseRecv() // signals EOF to the handler's RecvMsg
+	s.CloseRecv()
 	return nil
 }
 
 func (c *Conn) handleRESET(f frame.Frame) error {
 	s, ok := c.loadStream(f.StreamID)
 	if !ok {
-		// RESET for unknown stream is silently dropped per spec §4.4.
+		// RESET for unknown/closed stream is silently dropped per spec §4.4.
 		return nil
 	}
 	s.CloseRecv()
@@ -158,7 +154,7 @@ func (c *Conn) WriteFrame(typ uint8, streamID uint32, payload []byte) error {
 func (c *Conn) cancelAllStreams() {
 	c.streams.Range(func(_, value any) bool {
 		s := value.(*stream.Stream)
-		s.CloseRecv()
+		s.CloseRecv() // safe: guarded by sync.Once inside Stream
 		s.Cancel()
 		return true
 	})

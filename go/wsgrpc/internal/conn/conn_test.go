@@ -206,7 +206,21 @@ func TestServe20ConcurrentStreams(t *testing.T) {
 	wg.Wait()
 }
 
-// TestStreamIDZeroIsProtocolError verifies that stream_id=0 closes the connection.
+// expectProtocolClose reads until the connection is closed and asserts the
+// WebSocket close code is 1002 (ProtocolError).
+func expectProtocolClose(t *testing.T, ctx context.Context, ws *websocket.Conn) {
+	t.Helper()
+	_, _, err := ws.Read(ctx)
+	if err == nil {
+		t.Fatal("expected connection close, got nil error")
+	}
+	if code := websocket.CloseStatus(err); code != websocket.StatusProtocolError {
+		t.Errorf("close code: want %d (ProtocolError), got %d", websocket.StatusProtocolError, code)
+	}
+}
+
+// TestStreamIDZeroIsProtocolError verifies that stream_id=0 closes the
+// connection with WebSocket close code 1002.
 func TestStreamIDZeroIsProtocolError(t *testing.T) {
 	srv := newTestServer(t, echoHandler)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -221,15 +235,11 @@ func TestStreamIDZeroIsProtocolError(t *testing.T) {
 	encoded, _ := frame.Encode(frame.Frame{Type: frame.TypeBEGIN, StreamID: 0})
 	_ = ws.Write(ctx, websocket.MessageBinary, encoded)
 
-	// The server must close the connection after a stream_id=0 BEGIN.
-	_, _, err = ws.Read(ctx)
-	if err == nil {
-		t.Error("expected connection close after stream_id=0, got nil error")
-	}
+	expectProtocolClose(t, ctx, ws)
 }
 
 // TestNonMonotonicStreamIDIsProtocolError verifies that a BEGIN with a
-// stream_id ≤ the highest seen closes the connection.
+// stream_id ≤ the highest seen closes the connection with close code 1002.
 func TestNonMonotonicStreamIDIsProtocolError(t *testing.T) {
 	srv := newTestServer(t, echoHandler)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -249,10 +259,7 @@ func TestNonMonotonicStreamIDIsProtocolError(t *testing.T) {
 	sendBegin(5) // accepted
 	sendBegin(3) // non-monotonic — protocol error
 
-	_, _, err = ws.Read(ctx)
-	if err == nil {
-		t.Error("expected connection close after non-monotonic stream_id, got nil error")
-	}
+	expectProtocolClose(t, ctx, ws)
 }
 
 // TestRESETForUnknownStreamIsDropped verifies that RESET for a closed/unseen
@@ -280,8 +287,8 @@ func TestRESETForUnknownStreamIsDropped(t *testing.T) {
 	client.expectFrameType(t, ch, frame.TypeEND, 5*time.Second)
 }
 
-// TestRESETCancelsStream verifies that a client RESET cancels the stream context
-// and unblocks any handler blocked on RecvMsg.
+// TestRESETCancelsStream verifies that a client RESET unblocks a handler
+// waiting on RecvMsg (via channel close → io.EOF).
 func TestRESETCancelsStream(t *testing.T) {
 	handlerBlocked := make(chan struct{})
 	handlerDone := make(chan struct{})
@@ -290,9 +297,8 @@ func TestRESETCancelsStream(t *testing.T) {
 		defer close(handlerDone)
 		close(handlerBlocked) // signal that handler is running
 		m := new(wrapperspb.StringValue)
-		err := s.RecvMsg(m) // will block until RESET arrives
+		err := s.RecvMsg(m) // blocks until RESET arrives
 		if err == nil || err == io.EOF {
-			// RESET closes RecvCh, so RecvMsg returns io.EOF
 			return
 		}
 	}
@@ -304,14 +310,12 @@ func TestRESETCancelsStream(t *testing.T) {
 	client := dialClient(ctx, t, wsURL(srv))
 	client.send(ctx, t, frame.Frame{Type: frame.TypeBEGIN, StreamID: 1})
 
-	// Wait for handler to start.
 	select {
 	case <-handlerBlocked:
 	case <-time.After(2 * time.Second):
 		t.Fatal("handler did not start")
 	}
 
-	// Send RESET — handler's RecvMsg should unblock.
 	client.send(ctx, t, frame.Frame{Type: frame.TypeRESET, StreamID: 1})
 
 	select {
@@ -319,4 +323,73 @@ func TestRESETCancelsStream(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("handler did not exit after RESET")
 	}
+}
+
+// TestRESETCancelsStreamContext verifies that RESET also cancels the stream
+// context, so handlers that select on ctx.Done() are unblocked.
+func TestRESETCancelsStreamContext(t *testing.T) {
+	handlerBlocked := make(chan struct{})
+	handlerDone := make(chan struct{})
+
+	onStream := func(s *stream.Stream) {
+		defer close(handlerDone)
+		close(handlerBlocked)
+		// Block on context cancellation, not on RecvMsg.
+		<-s.Context().Done()
+	}
+
+	srv := newTestServer(t, onStream)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client := dialClient(ctx, t, wsURL(srv))
+	client.send(ctx, t, frame.Frame{Type: frame.TypeBEGIN, StreamID: 1})
+
+	select {
+	case <-handlerBlocked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler did not start")
+	}
+
+	client.send(ctx, t, frame.Frame{Type: frame.TypeRESET, StreamID: 1})
+
+	select {
+	case <-handlerDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler context was not cancelled after RESET")
+	}
+}
+
+// TestMSGAfterHandlerReturnIsDropped is a regression test for the in-flight
+// race: a MSG that crosses with the server's END should not kill the connection.
+func TestMSGAfterHandlerReturnIsDropped(t *testing.T) {
+	srv := newTestServer(t, echoHandler)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	client := dialClient(ctx, t, wsURL(srv))
+	ch := client.register(1)
+
+	client.send(ctx, t, frame.Frame{Type: frame.TypeBEGIN, StreamID: 1})
+	payload, _ := proto.Marshal(wrapperspb.String("hello"))
+	client.send(ctx, t, frame.Frame{Type: frame.TypeMSG, StreamID: 1, Payload: payload})
+	client.send(ctx, t, frame.Frame{Type: frame.TypeEND, StreamID: 1})
+
+	client.expectFrameType(t, ch, frame.TypeHEADER, 5*time.Second)
+	client.expectFrameType(t, ch, frame.TypeMSG, 5*time.Second)
+	client.expectFrameType(t, ch, frame.TypeEND, 5*time.Second)
+
+	// Now send a stale MSG for the closed stream — should be silently dropped,
+	// not kill the connection.
+	client.send(ctx, t, frame.Frame{Type: frame.TypeMSG, StreamID: 1, Payload: payload})
+
+	// Open a second stream to prove the connection is still alive.
+	ch2 := client.register(2)
+	client.send(ctx, t, frame.Frame{Type: frame.TypeBEGIN, StreamID: 2})
+	client.send(ctx, t, frame.Frame{Type: frame.TypeMSG, StreamID: 2, Payload: payload})
+	client.send(ctx, t, frame.Frame{Type: frame.TypeEND, StreamID: 2})
+
+	client.expectFrameType(t, ch2, frame.TypeHEADER, 5*time.Second)
+	client.expectFrameType(t, ch2, frame.TypeMSG, 5*time.Second)
+	client.expectFrameType(t, ch2, frame.TypeEND, 5*time.Second)
 }

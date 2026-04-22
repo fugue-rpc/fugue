@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 
+	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
 	"github.com/grpcws/wsgrpc/frame"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -21,15 +22,16 @@ type Sink interface {
 
 // Stream is the per-RPC stream object. It implements grpc.ServerStream.
 type Stream struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	streamID   uint32
-	sink       Sink
-	RecvCh     chan []byte // fed by conn.Conn on MSG arrival; exported for test setup
-	header     metadata.MD
-	trailer    metadata.MD
-	headerSent bool
-	mu         sync.Mutex
+	ctx          context.Context
+	cancel       context.CancelFunc
+	streamID     uint32
+	sink         Sink
+	RecvCh       chan []byte // fed by conn.Conn on MSG arrival; exported for test setup
+	closeRecvOnce sync.Once
+	header       metadata.MD
+	trailer      metadata.MD
+	headerSent   bool
+	mu           sync.Mutex
 }
 
 var _ grpc.ServerStream = (*Stream)(nil) // compile-time interface check
@@ -40,21 +42,21 @@ func New(ctx context.Context, cancel context.CancelFunc, id uint32, sink Sink) *
 		cancel:   cancel,
 		streamID: id,
 		sink:     sink,
-		RecvCh:   make(chan []byte, 64),
+		RecvCh:   make(chan []byte, 16),
 	}
 }
 
 // Deliver enqueues an inbound MSG payload. Called by conn.Conn on MSG frame arrival.
 func (s *Stream) Deliver(payload []byte) { s.RecvCh <- payload }
 
-// CloseRecv signals EOF to the handler. Called on client half-close (END) or RESET.
-func (s *Stream) CloseRecv() { close(s.RecvCh) }
+// CloseRecv signals EOF to the handler. Called on client half-close (END), RESET, or
+// WebSocket close. Safe to call multiple times.
+func (s *Stream) CloseRecv() { s.closeRecvOnce.Do(func() { close(s.RecvCh) }) }
 
 // Cancel cancels the stream context. Called on RESET or WebSocket close.
 func (s *Stream) Cancel() { s.cancel() }
 
 // Trailer returns the trailing metadata captured by SetTrailer.
-// Called by the dispatch layer after the handler returns.
 func (s *Stream) Trailer() metadata.MD {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -62,12 +64,22 @@ func (s *Stream) Trailer() metadata.MD {
 }
 
 // SendEnd writes an END frame encoding the gRPC status and captured trailers.
-// Called by the dispatch layer after the handler returns.
-// TODO: encode trailers into EndPayload proto once the frame package exists.
 func (s *Stream) SendEnd(err error) error {
 	st, _ := status.FromError(err)
-	code := uint32(st.Code())
-	payload := []byte{byte(code >> 24), byte(code >> 16), byte(code >> 8), byte(code)}
+	trailers := make(map[string]string)
+	for k, vs := range s.Trailer() {
+		if len(vs) > 0 {
+			trailers[k] = vs[0]
+		}
+	}
+	payload, merr := proto.Marshal(&framev1.EndPayload{
+		StatusCode:    uint32(st.Code()),
+		StatusMessage: st.Message(),
+		Trailers:      trailers,
+	})
+	if merr != nil {
+		return merr
+	}
 	return s.sink.WriteFrame(frame.TypeEND, s.streamID, payload)
 }
 
@@ -125,10 +137,20 @@ func (s *Stream) RecvMsg(m any) error {
 	return proto.Unmarshal(payload, m.(proto.Message))
 }
 
-// flushHeaderLocked sends a HEADER frame. Called with s.mu held.
-// TODO: encode s.header into HeaderPayload proto once the frame package exists.
+// flushHeaderLocked sends a HEADER frame carrying s.header as HeaderPayload.
+// Called with s.mu held.
 func (s *Stream) flushHeaderLocked() error {
-	if err := s.sink.WriteFrame(frame.TypeHEADER, s.streamID, nil); err != nil {
+	headers := make(map[string]string)
+	for k, vs := range s.header {
+		if len(vs) > 0 {
+			headers[k] = vs[0]
+		}
+	}
+	payload, err := proto.Marshal(&framev1.HeaderPayload{Headers: headers})
+	if err != nil {
+		return err
+	}
+	if err := s.sink.WriteFrame(frame.TypeHEADER, s.streamID, payload); err != nil {
 		return err
 	}
 	s.headerSent = true

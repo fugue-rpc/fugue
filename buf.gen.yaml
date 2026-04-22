@@ -2,6 +2,9 @@ version: v2
 inputs:
   - directory: proto
 plugins:
+  - local: protoc-gen-go
+    out: go/wsgrpc
+    opt: paths=source_relative
   - local: ["node", "node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es"]
     out: gen/ts
     opt: target=ts
