@@ -1,0 +1,36 @@
+goos: windows
+goarch: amd64
+pkg: github.com/grpcws/wsgrpc
+cpu: 11th Gen Intel(R) Core(TM) i7-11700F @ 2.50GHz
+BenchmarkUnaryEcho-16            	   58866	     86730 ns/op	   0.08 MB/s	    9945 B/op	     138 allocs/op
+BenchmarkUnaryEcho-16            	   70030	     87232 ns/op	   0.08 MB/s	    9928 B/op	     138 allocs/op
+BenchmarkUnaryEcho-16            	   68961	     95093 ns/op	   0.07 MB/s	    9930 B/op	     138 allocs/op
+BenchmarkUnaryEcho-16            	   67776	     85071 ns/op	   0.08 MB/s	    9931 B/op	     138 allocs/op
+BenchmarkUnaryEcho-16            	   64807	     86929 ns/op	   0.08 MB/s	    9936 B/op	     138 allocs/op
+BenchmarkUnaryEcho-16            	   69481	     87145 ns/op	   0.08 MB/s	    9928 B/op	     138 allocs/op
+BenchmarkUnaryEchoParallel-16    	  260706	     22856 ns/op	    9931 B/op	     138 allocs/op
+BenchmarkUnaryEchoParallel-16    	  270908	     18648 ns/op	    9931 B/op	     138 allocs/op
+BenchmarkUnaryEchoParallel-16    	  273496	     19736 ns/op	    9923 B/op	     138 allocs/op
+BenchmarkUnaryEchoParallel-16    	  274509	     18474 ns/op	    9929 B/op	     138 allocs/op
+BenchmarkUnaryEchoParallel-16    	  292383	     18479 ns/op	    9922 B/op	     138 allocs/op
+BenchmarkUnaryEchoParallel-16    	  297128	     19231 ns/op	    9921 B/op	     138 allocs/op
+BenchmarkBidiEcho-16             	  114354	     47803 ns/op	   0.06 MB/s	    2359 B/op	      41 allocs/op
+BenchmarkBidiEcho-16             	  123363	     47215 ns/op	   0.06 MB/s	    2359 B/op	      41 allocs/op
+BenchmarkBidiEcho-16             	  123771	     47232 ns/op	   0.06 MB/s	    2359 B/op	      41 allocs/op
+BenchmarkBidiEcho-16             	  127544	     47364 ns/op	   0.06 MB/s	    2359 B/op	      41 allocs/op
+BenchmarkBidiEcho-16             	  116817	     48304 ns/op	   0.06 MB/s	    2358 B/op	      41 allocs/op
+BenchmarkBidiEcho-16             	  126531	     47389 ns/op	   0.06 MB/s	    2358 B/op	      41 allocs/op
+PASS
+ok  	github.com/grpcws/wsgrpc	118.032s
+goos: windows
+goarch: amd64
+pkg: github.com/grpcws/wsgrpc/internal/conn
+cpu: 11th Gen Intel(R) Core(TM) i7-11700F @ 2.50GHz
+BenchmarkConnRoundTrip-16    	   61808	     93776 ns/op	   0.07 MB/s	   12808 B/op	     141 allocs/op
+BenchmarkConnRoundTrip-16    	   62022	     92771 ns/op	   0.08 MB/s	   12807 B/op	     141 allocs/op
+BenchmarkConnRoundTrip-16    	   61968	     94621 ns/op	   0.07 MB/s	   12807 B/op	     141 allocs/op
+BenchmarkConnRoundTrip-16    	   54214	     93594 ns/op	   0.07 MB/s	   12735 B/op	     141 allocs/op
+BenchmarkConnRoundTrip-16    	   66628	     94359 ns/op	   0.07 MB/s	   12793 B/op	     141 allocs/op
+BenchmarkConnRoundTrip-16    	   64290	     92943 ns/op	   0.08 MB/s	   12799 B/op	     141 allocs/op
+PASS
+ok  	github.com/grpcws/wsgrpc/internal/conn	40.996s
