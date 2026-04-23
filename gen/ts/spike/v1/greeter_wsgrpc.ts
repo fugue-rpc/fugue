@@ -2,27 +2,51 @@
 // @generated from file spike/v1/greeter.proto (package spike.v1, syntax proto3)
 /* eslint-disable */
 
-import type { WsGrpcTransport, UnaryCall, ServerStream, ClientStream, BidiStream } from "@grpcws/transport";
-import type { HelloRequest, HelloReply } from "./greeter_pb.js";
+import { fromBinary, toBinary } from "@bufbuild/protobuf";
+import type {
+  BidiStream,
+  ClientStream,
+  ServerStream,
+  UnaryCall,
+  WsGrpcTransport,
+} from "@grpcws/transport";
+import {
+  type HelloReply,
+  HelloReplySchema,
+  type HelloRequest,
+  HelloRequestSchema,
+} from "./greeter_pb.js";
 
 export class GreeterClient {
   constructor(private readonly transport: WsGrpcTransport) {}
 
   sayHello(req: HelloRequest): UnaryCall<HelloReply> {
-    return this.transport.openStream("/spike.v1.Greeter/SayHello").unary<HelloRequest, HelloReply>(req);
+    return this.transport
+      .openStream("/spike.v1.Greeter/SayHello")
+      .unary(toBinary(HelloRequestSchema, req), (b) => fromBinary(HelloReplySchema, b));
   }
 
   listReplies(req: HelloRequest): ServerStream<HelloReply> {
-    return this.transport.openStream("/spike.v1.Greeter/ListReplies").serverStream<HelloRequest, HelloReply>(req);
+    return this.transport
+      .openStream("/spike.v1.Greeter/ListReplies")
+      .serverStream(toBinary(HelloRequestSchema, req), (b) => fromBinary(HelloReplySchema, b));
   }
 
   collectHellos(): ClientStream<HelloRequest, HelloReply> {
-    return this.transport.openStream("/spike.v1.Greeter/CollectHellos").clientStream<HelloRequest, HelloReply>();
+    return this.transport
+      .openStream("/spike.v1.Greeter/CollectHellos")
+      .clientStream(
+        (req: HelloRequest) => toBinary(HelloRequestSchema, req),
+        (b) => fromBinary(HelloReplySchema, b),
+      );
   }
 
   chat(): BidiStream<HelloRequest, HelloReply> {
-    return this.transport.openStream("/spike.v1.Greeter/Chat").bidiStream<HelloRequest, HelloReply>();
+    return this.transport
+      .openStream("/spike.v1.Greeter/Chat")
+      .bidiStream(
+        (req: HelloRequest) => toBinary(HelloRequestSchema, req),
+        (b) => fromBinary(HelloReplySchema, b),
+      );
   }
-
 }
-
