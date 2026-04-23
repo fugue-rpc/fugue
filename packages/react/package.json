@@ -2,14 +2,24 @@
   "name": "@grpcws/react",
   "version": "0.1.0",
   "type": "module",
+  "description": "React hooks for grpcws — useUnary, useServerStream, useBidiStream",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
     "test": "vitest run"
   },

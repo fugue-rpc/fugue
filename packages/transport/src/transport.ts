@@ -17,6 +17,7 @@ export class WsGrpcTransport {
   private readonly _streams = new Map<number, RawStream>();
   private _nextStreamId = 1;
   private _state: ConnectionState = "connecting";
+  private _pending: Uint8Array[] = [];
 
   constructor(url: string, options?: TransportOptions) {
     const ws = options?._wsFactory
@@ -26,6 +27,8 @@ export class WsGrpcTransport {
 
     ws.onopen = () => {
       this._state = "open";
+      for (const frame of this._pending) this._ws.send(frame);
+      this._pending = [];
     };
 
     ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
@@ -38,11 +41,13 @@ export class WsGrpcTransport {
 
     ws.onclose = () => {
       this._state = "closed";
+      this._pending = [];
       this._resetAll();
     };
 
     ws.onerror = () => {
       this._state = "closed";
+      this._pending = [];
       this._resetAll();
     };
 
@@ -104,7 +109,11 @@ export class WsGrpcTransport {
       streamId,
       payload,
     });
-    this._ws.send(encoded);
+    if (this._state === "connecting") {
+      this._pending.push(encoded);
+    } else {
+      this._ws.send(encoded);
+    }
   }
 
   private _handleFrame(buf: Uint8Array): void {

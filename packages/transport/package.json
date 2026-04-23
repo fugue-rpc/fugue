@@ -2,15 +2,26 @@
   "name": "@grpcws/transport",
   "version": "0.1.0",
   "type": "module",
+  "description": "gRPC-over-WebSocket client transport for browsers and Node.js",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "!dist/**/*.test.*"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc",
-    "test": "vitest run"
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.6.0"

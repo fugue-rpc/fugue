@@ -2,8 +2,16 @@
   "name": "protoc-gen-wsgrpc",
   "version": "0.1.0",
   "type": "module",
+  "description": "protoc plugin: generates grpcws TypeScript clients from .proto files",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "protoc-gen-wsgrpc": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
