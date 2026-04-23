@@ -2,23 +2,17 @@ import { createEcmaScriptPlugin, runNodeJs } from "@bufbuild/protoplugin";
 import type { Schema } from "@bufbuild/protoplugin";
 import type { DescFile, DescMethod } from "@bufbuild/protobuf";
 
-// Maps method.methodKind to the @grpcws/transport interface name.
 function returnType(method: DescMethod): string {
   const i = method.input.name;
   const o = method.output.name;
   switch (method.methodKind) {
-    case "unary":
-      return `UnaryCall<${o}>`;
-    case "server_streaming":
-      return `ServerStream<${o}>`;
-    case "client_streaming":
-      return `ClientStream<${i}, ${o}>`;
-    case "bidi_streaming":
-      return `BidiStream<${i}, ${o}>`;
+    case "unary":            return `UnaryCall<${o}>`;
+    case "server_streaming": return `ServerStream<${o}>`;
+    case "client_streaming": return `ClientStream<${i}, ${o}>`;
+    case "bidi_streaming":   return `BidiStream<${i}, ${o}>`;
   }
 }
 
-// Methods that take a request argument (unary and server-streaming).
 function hasReqParam(method: DescMethod): boolean {
   return method.methodKind === "unary" || method.methodKind === "server_streaming";
 }
@@ -37,16 +31,45 @@ function methodPath(file: DescFile, serviceName: string, methodName: string): st
   return `/${pkg ? pkg + "." : ""}${serviceName}/${methodName}`;
 }
 
-function openStreamCall(method: DescMethod, path: string): string {
+// Returns the lines of the method body (indented 4 spaces, without surrounding braces).
+function methodBody(method: DescMethod, path: string): string[] {
+  const i = method.input.name;
+  const o = method.output.name;
+  const iS = `${i}Schema`;
+  const oS = `${o}Schema`;
+  const p = JSON.stringify(path);
+
   switch (method.methodKind) {
     case "unary":
-      return `return this.transport.openStream(${JSON.stringify(path)}).unary<${method.input.name}, ${method.output.name}>(req);`;
+      return [
+        `    return this.transport`,
+        `      .openStream(${p})`,
+        `      .unary(toBinary(${iS}, req), (b) => fromBinary(${oS}, b));`,
+      ];
     case "server_streaming":
-      return `return this.transport.openStream(${JSON.stringify(path)}).serverStream<${method.input.name}, ${method.output.name}>(req);`;
+      return [
+        `    return this.transport`,
+        `      .openStream(${p})`,
+        `      .serverStream(toBinary(${iS}, req), (b) => fromBinary(${oS}, b));`,
+      ];
     case "client_streaming":
-      return `return this.transport.openStream(${JSON.stringify(path)}).clientStream<${method.input.name}, ${method.output.name}>();`;
+      return [
+        `    return this.transport`,
+        `      .openStream(${p})`,
+        `      .clientStream(`,
+        `        (req: ${i}) => toBinary(${iS}, req),`,
+        `        (b) => fromBinary(${oS}, b),`,
+        `      );`,
+      ];
     case "bidi_streaming":
-      return `return this.transport.openStream(${JSON.stringify(path)}).bidiStream<${method.input.name}, ${method.output.name}>();`;
+      return [
+        `    return this.transport`,
+        `      .openStream(${p})`,
+        `      .bidiStream(`,
+        `        (req: ${i}) => toBinary(${iS}, req),`,
+        `        (b) => fromBinary(${oS}, b),`,
+        `      );`,
+      ];
   }
 }
 
@@ -63,7 +86,7 @@ const plugin = createEcmaScriptPlugin({
 
       f.preamble(file);
 
-      // Collect all unique message types referenced by this file's services.
+      // Collect unique message names and derive schema names.
       const msgNames = new Set<string>();
       for (const svc of file.services) {
         for (const method of svc.methods) {
@@ -72,21 +95,26 @@ const plugin = createEcmaScriptPlugin({
         }
       }
 
-      // Collect which transport types are needed.
-      const transportTypes = new Set<string>();
-      for (const svc of file.services) {
-        for (const method of svc.methods) {
-          switch (method.methodKind) {
-            case "unary":            transportTypes.add("UnaryCall"); break;
-            case "server_streaming": transportTypes.add("ServerStream"); break;
-            case "client_streaming": transportTypes.add("ClientStream"); break;
-            case "bidi_streaming":   transportTypes.add("BidiStream"); break;
-          }
-        }
-      }
+      // Imports — fromBinary/toBinary always needed.
+      f.print(`import { fromBinary, toBinary } from "@bufbuild/protobuf";`);
+      f.print(`import type {`);
+      f.print(`  BidiStream,`);
+      f.print(`  ClientStream,`);
+      f.print(`  ServerStream,`);
+      f.print(`  UnaryCall,`);
+      f.print(`  WsGrpcTransport,`);
+      f.print(`} from "@grpcws/transport";`);
 
-      f.print(`import type { WsGrpcTransport, ${[...transportTypes].join(", ")} } from "@grpcws/transport";`);
-      f.print(`import type { ${[...msgNames].join(", ")} } from "${pbImportPath(file)}";`);
+      // pb import: interleave type imports for message types and value imports for schemas.
+      const pbParts: string[] = [];
+      for (const name of [...msgNames].sort()) {
+        pbParts.push(`  type ${name}`, `  ${name}Schema`);
+      }
+      f.print(`import {`);
+      for (const part of pbParts) {
+        f.print(`${part},`);
+      }
+      f.print(`} from "${pbImportPath(file)}";`);
       f.print();
 
       for (const svc of file.services) {
@@ -98,10 +126,12 @@ const plugin = createEcmaScriptPlugin({
           const rt = returnType(method);
           const param = hasReqParam(method) ? `req: ${method.input.name}` : "";
           const path = methodPath(file, svc.name, method.name);
-          const call = openStreamCall(method, path);
+          const lines = methodBody(method, path);
 
           f.print(`  ${camelCase(method.name)}(${param}): ${rt} {`);
-          f.print(`    ${call}`);
+          for (const line of lines) {
+            f.print(line);
+          }
           f.print(`  }`);
           f.print();
         }

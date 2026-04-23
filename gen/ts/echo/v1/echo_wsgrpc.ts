@@ -10,7 +10,10 @@ import type {
   UnaryCall,
   WsGrpcTransport,
 } from "@grpcws/transport";
-import { type Msg, MsgSchema } from "./echo_pb.js";
+import {
+  type Msg,
+  MsgSchema,
+} from "./echo_pb.js";
 
 export class EchoClient {
   constructor(private readonly transport: WsGrpcTransport) {}
@@ -44,4 +47,6 @@ export class EchoClient {
         (b) => fromBinary(MsgSchema, b),
       );
   }
+
 }
+

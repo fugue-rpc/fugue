@@ -49,4 +49,6 @@ export class GreeterClient {
         (b) => fromBinary(HelloReplySchema, b),
       );
   }
+
 }
+
