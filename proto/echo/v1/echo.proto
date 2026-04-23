@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package echo.v1;
+
+option go_package = "github.com/grpcws/wsgrpc/echo/v1;echov1";
+
+service Echo {
+  // Unary: send one message, receive one message.
+  rpc Echo(Msg) returns (Msg);
+  // Server-streaming: send one message, receive N messages.
+  rpc EchoStream(Msg) returns (stream Msg);
+  // Client-streaming: send N messages, receive one message (concatenated).
+  rpc EchoCollect(stream Msg) returns (Msg);
+  // Bidi-streaming: each sent message is echoed back immediately.
+  rpc EchoBidi(stream Msg) returns (stream Msg);
+}
+
+message Msg {
+  string value = 1;
+}

@@ -166,7 +166,7 @@ func newStream(t *testing.T) (*stream.Stream, *recordingSink) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	sink := &recordingSink{}
-	s := stream.New(ctx, cancel, 1, sink)
+	s := stream.New(ctx, cancel, 1, "/test.Test/Method", sink)
 	t.Cleanup(func() { cancel() })
 	return s, sink
 }

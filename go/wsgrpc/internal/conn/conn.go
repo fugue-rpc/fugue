@@ -9,8 +9,11 @@ import (
 	"sync"
 
 	"github.com/coder/websocket"
+	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
 	"github.com/grpcws/wsgrpc/frame"
 	"github.com/grpcws/wsgrpc/internal/stream"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 )
 
 // Conn manages one WebSocket connection and the streams multiplexed over it.
@@ -84,8 +87,20 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 	}
 	c.highestID = id
 
-	sCtx, cancel := context.WithCancel(ctx)
-	s := stream.New(sCtx, cancel, id, c)
+	// Decode BeginPayload to extract the method path and request metadata.
+	var bp framev1.BeginPayload
+	if len(f.Payload) > 0 {
+		if err := proto.Unmarshal(f.Payload, &bp); err != nil {
+			_ = c.ws.Close(websocket.StatusProtocolError, "bad BeginPayload")
+			return fmt.Errorf("conn: bad BeginPayload on stream %d: %w", id, err)
+		}
+	}
+	md := make(metadata.MD, len(bp.Metadata))
+	for k, v := range bp.Metadata {
+		md[k] = []string{v}
+	}
+	sCtx, cancel := context.WithCancel(metadata.NewIncomingContext(ctx, md))
+	s := stream.New(sCtx, cancel, id, bp.Method, c)
 	c.streams.Store(id, s)
 
 	go func() {

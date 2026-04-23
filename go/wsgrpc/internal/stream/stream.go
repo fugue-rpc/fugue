@@ -22,29 +22,34 @@ type Sink interface {
 
 // Stream is the per-RPC stream object. It implements grpc.ServerStream.
 type Stream struct {
-	ctx          context.Context
-	cancel       context.CancelFunc
-	streamID     uint32
-	sink         Sink
-	RecvCh       chan []byte // fed by conn.Conn on MSG arrival; exported for test setup
+	ctx           context.Context
+	cancel        context.CancelFunc
+	streamID      uint32
+	method        string // full gRPC method path, e.g. "/echo.v1.Echo/Echo"
+	sink          Sink
+	RecvCh        chan []byte // fed by conn.Conn on MSG arrival; exported for test setup
 	closeRecvOnce sync.Once
-	header       metadata.MD
-	trailer      metadata.MD
-	headerSent   bool
-	mu           sync.Mutex
+	header        metadata.MD
+	trailer       metadata.MD
+	headerSent    bool
+	mu            sync.Mutex
 }
 
 var _ grpc.ServerStream = (*Stream)(nil) // compile-time interface check
 
-func New(ctx context.Context, cancel context.CancelFunc, id uint32, sink Sink) *Stream {
+func New(ctx context.Context, cancel context.CancelFunc, id uint32, method string, sink Sink) *Stream {
 	return &Stream{
 		ctx:      ctx,
 		cancel:   cancel,
 		streamID: id,
+		method:   method,
 		sink:     sink,
 		RecvCh:   make(chan []byte, 16),
 	}
 }
+
+// Method returns the full gRPC method path from the BEGIN frame.
+func (s *Stream) Method() string { return s.method }
 
 // Deliver enqueues an inbound MSG payload. Called by conn.Conn on MSG frame arrival.
 func (s *Stream) Deliver(payload []byte) { s.RecvCh <- payload }
