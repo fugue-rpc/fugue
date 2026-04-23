@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 
 	"github.com/coder/websocket"
 	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
 	"github.com/grpcws/wsgrpc/frame"
 	"github.com/grpcws/wsgrpc/internal/stream"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -25,9 +28,14 @@ type Conn struct {
 	log       *slog.Logger
 
 	// OnStream is called in a new goroutine for every incoming BEGIN frame.
-	// Week 3 replaces this with gRPC service dispatch.
 	// If nil, incoming streams are accepted but no handler runs.
 	OnStream func(s *stream.Stream)
+
+	// Performance limits — set before calling Serve.
+	RecvBufSize int // per-stream inbound buffer depth (0 → stream.DefaultRecvBufSize)
+	MaxStreams  int // max concurrent streams (0 → unlimited)
+
+	activeStreams atomic.Int32
 }
 
 func New(ws *websocket.Conn, log *slog.Logger) *Conn {
@@ -87,7 +95,7 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 	}
 	c.highestID = id
 
-	// Decode BeginPayload to extract the method path and request metadata.
+	// Decode BeginPayload before taking any resource slots.
 	var bp framev1.BeginPayload
 	if len(f.Payload) > 0 {
 		if err := proto.Unmarshal(f.Payload, &bp); err != nil {
@@ -95,16 +103,33 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 			return fmt.Errorf("conn: bad BeginPayload on stream %d: %w", id, err)
 		}
 	}
+
+	// Check concurrent stream limit before allocating any resources.
+	if c.MaxStreams > 0 && int(c.activeStreams.Add(1)) > c.MaxStreams {
+		c.activeStreams.Add(-1)
+		endPayload, _ := proto.Marshal(&framev1.EndPayload{
+			StatusCode:    uint32(codes.ResourceExhausted),
+			StatusMessage: "too many concurrent streams",
+		})
+		_ = c.WriteFrame(frame.TypeEND, id, endPayload)
+		return nil
+	}
+
 	md := make(metadata.MD, len(bp.Metadata))
 	for k, v := range bp.Metadata {
 		md[k] = []string{v}
 	}
 	sCtx, cancel := context.WithCancel(metadata.NewIncomingContext(ctx, md))
-	s := stream.New(sCtx, cancel, id, bp.Method, c)
+	s := stream.New(sCtx, cancel, id, bp.Method, c.RecvBufSize, c)
 	c.streams.Store(id, s)
 
 	go func() {
-		defer c.streams.Delete(id)
+		defer func() {
+			c.streams.Delete(id)
+			if c.MaxStreams > 0 {
+				c.activeStreams.Add(-1)
+			}
+		}()
 		if c.OnStream != nil {
 			c.OnStream(s)
 		}
@@ -114,12 +139,19 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 
 // handleMSG silently drops frames for unknown/closed streams. A MSG arriving
 // after the handler returned is an in-flight race, not a protocol error.
+// If the stream's inbound buffer is full, the stream is terminated with
+// RESOURCE_EXHAUSTED to preserve stream independence.
 func (c *Conn) handleMSG(f frame.Frame) error {
 	s, ok := c.loadStream(f.StreamID)
 	if !ok {
 		return nil
 	}
-	s.Deliver(f.Payload)
+	if !s.Deliver(f.Payload) {
+		_ = s.SendEnd(status.Error(codes.ResourceExhausted, "inbound message buffer full"))
+		s.CloseRecv()
+		s.Cancel()
+		c.streams.Delete(f.StreamID)
+	}
 	return nil
 }
 

@@ -21,10 +21,12 @@ import (
 // registered service handlers. It implements http.Handler and
 // grpc.ServiceRegistrar.
 type Server struct {
-	mu      sync.RWMutex
-	methods map[string]methodEntry
-	origins []string
-	log     *slog.Logger
+	mu          sync.RWMutex
+	methods     map[string]methodEntry
+	origins     []string
+	log         *slog.Logger
+	recvBufSize int
+	maxStreams   int
 }
 
 type methodEntry struct {
@@ -51,6 +53,20 @@ func WithOrigins(origins ...string) Option {
 // WithLogger sets the logger used for connection-level events.
 func WithLogger(l *slog.Logger) Option {
 	return func(s *Server) { s.log = l }
+}
+
+// WithStreamRecvBuffer sets the per-stream inbound message buffer depth.
+// When a stream's buffer fills, it is terminated with RESOURCE_EXHAUSTED so
+// slow handlers never block the connection read loop. Default: 64.
+func WithStreamRecvBuffer(n int) Option {
+	return func(s *Server) { s.recvBufSize = n }
+}
+
+// WithMaxConcurrentStreams limits the number of simultaneously open streams
+// per connection. Streams beyond the limit receive an immediate END with
+// RESOURCE_EXHAUSTED; the connection itself stays alive. Default: unlimited.
+func WithMaxConcurrentStreams(n int) Option {
+	return func(s *Server) { s.maxStreams = n }
 }
 
 // NewServer creates a new Server.
@@ -95,6 +111,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	c := conn.New(ws, s.log)
 	c.OnStream = s.onStream
+	c.RecvBufSize = s.recvBufSize
+	c.MaxStreams = s.maxStreams
 	if err := c.Serve(r.Context()); err != nil {
 		s.log.Debug("conn closed", "err", err)
 	}

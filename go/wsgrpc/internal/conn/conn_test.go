@@ -360,6 +360,94 @@ func TestRESETCancelsStreamContext(t *testing.T) {
 	}
 }
 
+// connCfg carries optional overrides applied to Conn before Serve is called.
+type connCfg struct {
+	recvBufSize int
+	maxStreams  int
+}
+
+// newTestServerWithCfg is like newTestServer but applies connCfg to the Conn.
+func newTestServerWithCfg(t *testing.T, onStream func(*stream.Stream), cfg connCfg) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			InsecureSkipVerify: true,
+		})
+		if err != nil {
+			t.Logf("websocket.Accept: %v", err)
+			return
+		}
+		c := conn.New(ws, nil)
+		c.OnStream = onStream
+		c.RecvBufSize = cfg.recvBufSize
+		c.MaxStreams = cfg.maxStreams
+		_ = c.Serve(r.Context())
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// TestStreamIndependence is the Week 2 performance done criterion.
+// A handler that fills its inbound buffer must not stall the read loop or
+// block other streams on the same connection (stream independence invariant).
+func TestStreamIndependence(t *testing.T) {
+	const recvBuf = 2
+
+	stream1Started := make(chan struct{})
+	var once sync.Once
+
+	onStream := func(s *stream.Stream) {
+		var wasFirst bool
+		once.Do(func() {
+			wasFirst = true
+			close(stream1Started)
+		})
+		if wasFirst {
+			// Block until the stream is cancelled by the overflow handler.
+			<-s.Context().Done()
+			return
+		}
+		echoHandler(s)
+	}
+
+	srv := newTestServerWithCfg(t, onStream, connCfg{recvBufSize: recvBuf})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	client := dialClient(ctx, t, wsURL(srv))
+
+	// Open stream 1 whose handler blocks forever without reading RecvCh.
+	ch1 := client.register(1)
+	client.send(ctx, t, frame.Frame{Type: frame.TypeBEGIN, StreamID: 1})
+
+	select {
+	case <-stream1Started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream 1 handler did not start")
+	}
+
+	// Flood stream 1 with recvBuf+1 messages to force buffer overflow.
+	payload, _ := proto.Marshal(wrapperspb.String("flood"))
+	for i := 0; i < recvBuf+1; i++ {
+		client.send(ctx, t, frame.Frame{Type: frame.TypeMSG, StreamID: 1, Payload: payload})
+	}
+
+	// Stream 1 must receive END (RESOURCE_EXHAUSTED) — must not stall the read loop.
+	client.expectFrameType(t, ch1, frame.TypeEND, 5*time.Second)
+
+	// Stream 2 on the same connection must complete normally, proving the read loop
+	// was never blocked by stream 1's full buffer.
+	ch2 := client.register(2)
+	client.send(ctx, t, frame.Frame{Type: frame.TypeBEGIN, StreamID: 2})
+	echoPayload, _ := proto.Marshal(wrapperspb.String("ok"))
+	client.send(ctx, t, frame.Frame{Type: frame.TypeMSG, StreamID: 2, Payload: echoPayload})
+	client.send(ctx, t, frame.Frame{Type: frame.TypeEND, StreamID: 2})
+
+	client.expectFrameType(t, ch2, frame.TypeHEADER, 5*time.Second)
+	client.expectFrameType(t, ch2, frame.TypeMSG, 5*time.Second)
+	client.expectFrameType(t, ch2, frame.TypeEND, 5*time.Second)
+}
+
 // TestMSGAfterHandlerReturnIsDropped is a regression test for the in-flight
 // race: a MSG that crosses with the server's END should not kill the connection.
 func TestMSGAfterHandlerReturnIsDropped(t *testing.T) {

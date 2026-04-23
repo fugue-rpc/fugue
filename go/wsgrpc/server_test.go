@@ -15,6 +15,7 @@ import (
 	"github.com/grpcws/wsgrpc/frame"
 	"github.com/grpcws/wsgrpc"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -282,6 +283,93 @@ func TestUnimplementedMethod(t *testing.T) {
 		if f.Type != frame.TypeEND {
 			t.Fatalf("want END for unknown method, got 0x%02x", f.Type)
 		}
+	}
+}
+
+// TestMaxConcurrentStreams verifies that WithMaxConcurrentStreams(N) rejects the
+// (N+1)th stream with RESOURCE_EXHAUSTED while keeping the connection alive.
+func TestMaxConcurrentStreams(t *testing.T) {
+	const limit = 2
+
+	s := wsgrpc.NewServer(wsgrpc.WithMaxConcurrentStreams(limit))
+	echov1.RegisterEchoServer(s, &echoImpl{})
+	hs := httptest.NewServer(s)
+	t.Cleanup(hs.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	c := dial(ctx, t, wsURL(hs))
+
+	// Per-stream frame channels; writes happen before the goroutine starts so
+	// no mutex is needed for the demuxer reads.
+	streams := make(map[uint32]chan frame.Frame)
+	for i := uint32(1); i <= limit+1; i++ {
+		streams[i] = make(chan frame.Frame, 32)
+	}
+
+	go func() {
+		for {
+			_, msg, err := c.ws.Read(ctx)
+			if err != nil {
+				return
+			}
+			f, err := frame.Decode(msg)
+			if err != nil {
+				continue
+			}
+			if ch := streams[f.StreamID]; ch != nil {
+				ch <- f
+			}
+		}
+	}()
+
+	expect := func(id uint32, want uint8) frame.Frame {
+		t.Helper()
+		select {
+		case f := <-streams[id]:
+			if f.Type != want {
+				t.Errorf("stream %d: want 0x%02x, got 0x%02x", id, want, f.Type)
+			}
+			return f
+		case <-time.After(3 * time.Second):
+			t.Fatalf("stream %d: timeout waiting for 0x%02x", id, want)
+		}
+		return frame.Frame{}
+	}
+
+	// Open 'limit' bidi streams and send a message on each to confirm handlers
+	// are running before attempting the over-limit stream.
+	for i := uint32(1); i <= limit; i++ {
+		c.sendBegin(ctx, t, i, echov1.Echo_EchoBidi_FullMethodName)
+	}
+	for i := uint32(1); i <= limit; i++ {
+		c.sendMsg(ctx, t, i, &echov1.Msg{Value: "ping"})
+	}
+	for i := uint32(1); i <= limit; i++ {
+		expect(i, frame.TypeHEADER)
+		expect(i, frame.TypeMSG)
+	}
+
+	// Try to open one more stream — must be rejected immediately.
+	overLimit := uint32(limit + 1)
+	c.sendBegin(ctx, t, overLimit, echov1.Echo_EchoBidi_FullMethodName)
+
+	f := expect(overLimit, frame.TypeEND)
+	var ep framev1.EndPayload
+	if err := proto.Unmarshal(f.Payload, &ep); err != nil {
+		t.Fatalf("unmarshal EndPayload: %v", err)
+	}
+	if codes.Code(ep.StatusCode) != codes.ResourceExhausted {
+		t.Errorf("status: want ResourceExhausted, got %v", codes.Code(ep.StatusCode))
+	}
+
+	// Close the open streams and verify the connection is still alive.
+	for i := uint32(1); i <= limit; i++ {
+		c.sendEnd(ctx, t, i)
+	}
+	for i := uint32(1); i <= limit; i++ {
+		expect(i, frame.TypeEND)
 	}
 }
 
