@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	_ "net/http/pprof" // registers /debug/pprof/ on the default mux
 	"strings"
 
 	echov1 "github.com/grpcws/wsgrpc/echo/v1"
@@ -16,9 +17,20 @@ func main() {
 	srv := wsgrpc.NewServer(wsgrpc.WithLogger(slog.Default()))
 	echov1.RegisterEchoServer(srv, &echoImpl{})
 
+	// pprof on a dedicated port so it never contends with gRPC traffic.
+	go func() {
+		slog.Info("pprof listening", "addr", ":6060", "path", "/debug/pprof/")
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			slog.Error("pprof server exited", "err", err)
+		}
+	}()
+
+	// gRPC-over-WebSocket on its own mux so pprof routes stay separate.
+	mux := http.NewServeMux()
+	mux.Handle("/wsgrpc/", srv)
+
 	slog.Info("echo server listening", "addr", ":8080", "path", "/wsgrpc/")
-	http.Handle("/wsgrpc/", srv)
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", mux); err != nil {
 		slog.Error("server exited", "err", err)
 	}
 }

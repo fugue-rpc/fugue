@@ -68,7 +68,7 @@ func (e *echoImpl) EchoBidi(stream grpc.BidiStreamingServer[echov1.Msg, echov1.M
 
 // --- test helpers ---
 
-func newEchoServer(t *testing.T) *httptest.Server {
+func newEchoServer(t testing.TB) *httptest.Server {
 	t.Helper()
 	srv := wsgrpc.NewServer()
 	echov1.RegisterEchoServer(srv, &echoImpl{})
@@ -87,7 +87,7 @@ type testConn struct {
 	writeMu sync.Mutex
 }
 
-func dial(ctx context.Context, t *testing.T, url string) *testConn {
+func dial(ctx context.Context, t testing.TB, url string) *testConn {
 	t.Helper()
 	ws, _, err := websocket.Dial(ctx, url, nil)
 	if err != nil {
@@ -97,7 +97,7 @@ func dial(ctx context.Context, t *testing.T, url string) *testConn {
 	return &testConn{ws: ws}
 }
 
-func (c *testConn) send(ctx context.Context, t *testing.T, f frame.Frame) {
+func (c *testConn) send(ctx context.Context, t testing.TB, f frame.Frame) {
 	t.Helper()
 	b, err := frame.Encode(f)
 	if err != nil {
@@ -110,7 +110,7 @@ func (c *testConn) send(ctx context.Context, t *testing.T, f frame.Frame) {
 	}
 }
 
-func (c *testConn) sendBegin(ctx context.Context, t *testing.T, id uint32, method string) {
+func (c *testConn) sendBegin(ctx context.Context, t testing.TB, id uint32, method string) {
 	t.Helper()
 	payload, err := proto.Marshal(&framev1.BeginPayload{Method: method})
 	if err != nil {
@@ -119,7 +119,7 @@ func (c *testConn) sendBegin(ctx context.Context, t *testing.T, id uint32, metho
 	c.send(ctx, t, frame.Frame{Type: frame.TypeBEGIN, StreamID: id, Payload: payload})
 }
 
-func (c *testConn) sendMsg(ctx context.Context, t *testing.T, id uint32, m proto.Message) {
+func (c *testConn) sendMsg(ctx context.Context, t testing.TB, id uint32, m proto.Message) {
 	t.Helper()
 	payload, err := proto.Marshal(m)
 	if err != nil {
@@ -128,12 +128,12 @@ func (c *testConn) sendMsg(ctx context.Context, t *testing.T, id uint32, m proto
 	c.send(ctx, t, frame.Frame{Type: frame.TypeMSG, StreamID: id, Payload: payload})
 }
 
-func (c *testConn) sendEnd(ctx context.Context, t *testing.T, id uint32) {
+func (c *testConn) sendEnd(ctx context.Context, t testing.TB, id uint32) {
 	t.Helper()
 	c.send(ctx, t, frame.Frame{Type: frame.TypeEND, StreamID: id})
 }
 
-func (c *testConn) readFrame(ctx context.Context, t *testing.T) frame.Frame {
+func (c *testConn) readFrame(ctx context.Context, t testing.TB) frame.Frame {
 	t.Helper()
 	_, msg, err := c.ws.Read(ctx)
 	if err != nil {
@@ -146,7 +146,7 @@ func (c *testConn) readFrame(ctx context.Context, t *testing.T) frame.Frame {
 	return f
 }
 
-func (c *testConn) expectType(ctx context.Context, t *testing.T, want uint8) frame.Frame {
+func (c *testConn) expectType(ctx context.Context, t testing.TB, want uint8) frame.Frame {
 	t.Helper()
 	f := c.readFrame(ctx, t)
 	if f.Type != want {
@@ -155,7 +155,7 @@ func (c *testConn) expectType(ctx context.Context, t *testing.T, want uint8) fra
 	return f
 }
 
-func (c *testConn) recvMsg(ctx context.Context, t *testing.T, id uint32, m proto.Message) {
+func (c *testConn) recvMsg(ctx context.Context, t testing.TB, id uint32, m proto.Message) {
 	t.Helper()
 	f := c.expectType(ctx, t, frame.TypeMSG)
 	if f.StreamID != id {
@@ -448,4 +448,114 @@ func TestConcurrent20Streams(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// ── Benchmarks ────────────────────────────────────────────────────────────────
+
+// BenchmarkUnaryEcho measures the full round-trip latency of a single
+// sequential unary RPC: BEGIN+MSG+END → HEADER+MSG+END.
+// One connection is reused across all iterations; stream IDs increment.
+func BenchmarkUnaryEcho(b *testing.B) {
+	srv := newEchoServer(b)
+	ctx := context.Background()
+	c := dial(ctx, b, wsURL(srv))
+
+	payload, _ := proto.Marshal(&echov1.Msg{Value: "hello"})
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		id := uint32(i + 1)
+		c.sendBegin(ctx, b, id, echov1.Echo_Echo_FullMethodName)
+		c.sendMsg(ctx, b, id, &echov1.Msg{Value: "hello"})
+		c.sendEnd(ctx, b, id)
+		c.expectType(ctx, b, frame.TypeHEADER)
+		c.expectType(ctx, b, frame.TypeMSG)
+		c.expectType(ctx, b, frame.TypeEND)
+	}
+}
+
+// BenchmarkUnaryEchoParallel measures unary throughput with GOMAXPROCS
+// goroutines each driving their own connection.
+func BenchmarkUnaryEchoParallel(b *testing.B) {
+	srv := newEchoServer(b)
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		ctx := context.Background()
+		c := dial(ctx, b, wsURL(srv))
+		defer c.ws.CloseNow()
+		var id uint32
+		for pb.Next() {
+			id++
+			c.sendBegin(ctx, b, id, echov1.Echo_Echo_FullMethodName)
+			c.sendMsg(ctx, b, id, &echov1.Msg{Value: "hello"})
+			c.sendEnd(ctx, b, id)
+			c.expectType(ctx, b, frame.TypeHEADER)
+			c.expectType(ctx, b, frame.TypeMSG)
+			c.expectType(ctx, b, frame.TypeEND)
+		}
+	})
+}
+
+// BenchmarkBidiEcho measures the round-trip latency of a single message on a
+// persistent bidi stream: send one MSG, receive one MSG echo per iteration.
+// The stream stays open across all b.N iterations so stream-open overhead is
+// amortised. Compare with BenchmarkUnaryEcho to see the cost difference
+// between unary and bidi stream reuse.
+func BenchmarkBidiEcho(b *testing.B) {
+	srv := newEchoServer(b)
+	ctx := context.Background()
+
+	ws, _, err := websocket.Dial(ctx, wsURL(srv), nil)
+	if err != nil {
+		b.Fatalf("dial: %v", err)
+	}
+	b.Cleanup(func() { ws.CloseNow() })
+
+	sendRaw := func(f frame.Frame) {
+		enc, _ := frame.Encode(f)
+		if err := ws.Write(ctx, websocket.MessageBinary, enc); err != nil {
+			b.Fatalf("ws.Write: %v", err)
+		}
+	}
+	recvFrame := func() frame.Frame {
+		_, raw, err := ws.Read(ctx)
+		if err != nil {
+			b.Fatalf("ws.Read: %v", err)
+		}
+		f, err := frame.Decode(raw)
+		if err != nil {
+			b.Fatalf("frame.Decode: %v", err)
+		}
+		return f
+	}
+
+	// Open bidi stream; consume the HEADER that arrives with the first echo.
+	beginPayload, _ := proto.Marshal(&framev1.BeginPayload{Method: echov1.Echo_EchoBidi_FullMethodName})
+	sendRaw(frame.Frame{Type: frame.TypeBEGIN, StreamID: 1, Payload: beginPayload})
+
+	payload, _ := proto.Marshal(&echov1.Msg{Value: "x"})
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		sendRaw(frame.Frame{Type: frame.TypeMSG, StreamID: 1, Payload: payload})
+		// First iteration also drains the HEADER the server sends before its
+		// first reply; subsequent iterations see only MSG frames.
+		if i == 0 {
+			f := recvFrame()
+			if f.Type == frame.TypeHEADER {
+				recvFrame() // discard HEADER, read the actual MSG echo
+			}
+		} else {
+			recvFrame() // MSG echo
+		}
+	}
+
+	// Half-close so the server handler returns cleanly.
+	sendRaw(frame.Frame{Type: frame.TypeEND, StreamID: 1})
 }

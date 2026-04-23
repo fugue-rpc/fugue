@@ -38,7 +38,7 @@ func echoHandler(s *stream.Stream) {
 
 // newTestServer starts an httptest.Server that upgrades to WebSocket and runs
 // conn.Serve with the provided OnStream handler.
-func newTestServer(t *testing.T, onStream func(*stream.Stream)) *httptest.Server {
+func newTestServer(t testing.TB, onStream func(*stream.Stream)) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -72,7 +72,7 @@ type clientConn struct {
 	streams map[uint32]chan frame.Frame
 }
 
-func dialClient(ctx context.Context, t *testing.T, url string) *clientConn {
+func dialClient(ctx context.Context, t testing.TB, url string) *clientConn {
 	t.Helper()
 	ws, _, err := websocket.Dial(ctx, url, nil)
 	if err != nil {
@@ -118,7 +118,7 @@ func (c *clientConn) readLoop(ctx context.Context) {
 	}
 }
 
-func (c *clientConn) send(ctx context.Context, t *testing.T, f frame.Frame) {
+func (c *clientConn) send(ctx context.Context, t testing.TB, f frame.Frame) {
 	t.Helper()
 	encoded, err := frame.Encode(f)
 	if err != nil {
@@ -131,7 +131,7 @@ func (c *clientConn) send(ctx context.Context, t *testing.T, f frame.Frame) {
 	}
 }
 
-func (c *clientConn) expectFrameType(t *testing.T, ch <-chan frame.Frame, wantType uint8, timeout time.Duration) frame.Frame {
+func (c *clientConn) expectFrameType(t testing.TB, ch <-chan frame.Frame, wantType uint8, timeout time.Duration) frame.Frame {
 	t.Helper()
 	select {
 	case f, ok := <-ch:
@@ -367,7 +367,7 @@ type connCfg struct {
 }
 
 // newTestServerWithCfg is like newTestServer but applies connCfg to the Conn.
-func newTestServerWithCfg(t *testing.T, onStream func(*stream.Stream), cfg connCfg) *httptest.Server {
+func newTestServerWithCfg(t testing.TB, onStream func(*stream.Stream), cfg connCfg) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -480,4 +480,31 @@ func TestMSGAfterHandlerReturnIsDropped(t *testing.T) {
 	client.expectFrameType(t, ch2, frame.TypeHEADER, 5*time.Second)
 	client.expectFrameType(t, ch2, frame.TypeMSG, 5*time.Second)
 	client.expectFrameType(t, ch2, frame.TypeEND, 5*time.Second)
+}
+
+// ── Benchmarks ────────────────────────────────────────────────────────────────
+
+// BenchmarkConnRoundTrip measures the raw conn-layer cost of one echo
+// round-trip with no gRPC dispatch overhead. Compare with
+// BenchmarkUnaryEcho in server_test.go to isolate dispatch cost.
+func BenchmarkConnRoundTrip(b *testing.B) {
+	srv := newTestServer(b, echoHandler)
+	ctx := context.Background()
+	client := dialClient(ctx, b, wsURL(srv))
+
+	payload, _ := proto.Marshal(wrapperspb.String("hello"))
+	b.SetBytes(int64(len(payload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		id := uint32(i + 1)
+		ch := client.register(id)
+		client.send(ctx, b, frame.Frame{Type: frame.TypeBEGIN, StreamID: id})
+		client.send(ctx, b, frame.Frame{Type: frame.TypeMSG, StreamID: id, Payload: payload})
+		client.send(ctx, b, frame.Frame{Type: frame.TypeEND, StreamID: id})
+		client.expectFrameType(b, ch, frame.TypeHEADER, 5*time.Second)
+		client.expectFrameType(b, ch, frame.TypeMSG, 5*time.Second)
+		client.expectFrameType(b, ch, frame.TypeEND, 5*time.Second)
+	}
 }
