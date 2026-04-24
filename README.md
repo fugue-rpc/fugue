@@ -75,7 +75,9 @@ cd go/wsgrpc
 go test ./... -race
 ```
 
-### Benchmarks (Windows/amd64, i7-11700F)
+### Benchmarks (Windows/amd64, i7-11700F, Go 1.26)
+
+**Go micro-benchmarks (single connection, in-process)**
 
 ```
 BenchmarkUnaryEcho-16           ~82 µs/op    130 allocs/op
@@ -84,7 +86,27 @@ BenchmarkBidiEcho-16            ~46 µs/op     40 allocs/op
 BenchmarkConnRoundTrip-16       ~94 µs/op    141 allocs/op
 ```
 
-The unary round-trip is currently ~82 µs on loopback; a grpc-go loopback unary is typically 20–40 µs. The gap is mostly proto.Marshal/Unmarshal allocations — reducing that further requires proto message pooling or a custom codec.
+**Stress tool comparison: grpcws vs Connect-RPC (HTTP/1.1), Windows loopback**
+
+| scenario | grpcws | Connect-H1 |
+|---|---|---|
+| 1 stream (sequential) | ~8 k RPC/s | ~8 k RPC/s |
+| 10 conns × 10 streams | **60 k RPC/s** · p99 8 ms | **60 k RPC/s** · p99 10 ms |
+| 50 conns × 20 streams | **76 k RPC/s** · p99 73 ms | 41 k RPC/s · p99 149 ms |
+
+At moderate concurrency the two protocols are equivalent. At high concurrency grpcws gains ~1.9× because WebSocket multiplexing keeps TCP connections at O(conns), while HTTP/1.1 keep-alive requires O(conns × streams) connections — the OS TCP stack starts struggling around 1000 simultaneous connections on Windows.
+
+**Connect server under wrk (WSL→Windows virtual-network hop)**
+
+| connections | RPC/s | p50 | p99 |
+|---|---|---|---|
+| 1 | 1,200 | 293 µs | 151 ms |
+| 100 | 47 k | 1.6 ms | 14 ms |
+| 1000 | 45 k | 16 ms | 225 ms |
+
+Numbers are lower than loopback because of the WSL virtual-network adapter latency (~1–3 ms base). See `benchmarks/comparison-results.txt` for full details.
+
+The unary round-trip is ~82 µs on in-process loopback; a grpc-go in-process unary is typically 20–40 µs. The gap is proto.Marshal/Unmarshal allocations — reducing further requires proto message pooling or a custom codec.
 
 ---
 

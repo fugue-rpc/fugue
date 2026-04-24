@@ -1,6 +1,7 @@
 go 1.26.1
 
 use (
+	./examples/connect-echo-server
 	./examples/echo-server
 	./examples/stress
 	./go/wsgrpc

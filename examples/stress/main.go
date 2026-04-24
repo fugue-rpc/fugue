@@ -1,8 +1,15 @@
-// stress hammers the grpcws echo server and reports throughput + latency.
+// stress hammers an echo server and reports throughput + latency.
 //
-// Usage:
+// Modes:
 //
-//	stress -addr ws://localhost:8080/wsgrpc/ -conns 10 -streams 10 -duration 30s
+//	grpcws (default) — grpcws WebSocket protocol
+//	  stress -addr ws://localhost:8080/wsgrpc/ -conns 10 -streams 10 -duration 30s
+//
+//	connect-h1 / connect-h2 — Connect protocol over HTTP/1.1 or HTTP/2 (h2c)
+//	  stress -mode connect-h1 -connect-addr http://localhost:8090/echo.v1.Echo/Echo -conns 10 -streams 10
+//
+// Profiling:
+//
 //	stress -cpuprofile cpu.pprof   # write CPU profile (open with: go tool pprof cpu.pprof)
 //	stress -memprofile mem.pprof   # write heap profile after run
 package main
@@ -28,13 +35,15 @@ import (
 )
 
 var (
-	addr        = flag.String("addr", "ws://localhost:8080/wsgrpc/", "echo server WebSocket address")
-	numConns    = flag.Int("conns", 10, "number of WebSocket connections")
-	numStreams  = flag.Int("streams", 10, "concurrent streams per connection")
+	addr        = flag.String("addr", "ws://localhost:8080/wsgrpc/", "grpcws WebSocket address")
+	numConns    = flag.Int("conns", 10, "number of connections (WebSocket conns or HTTP client instances)")
+	numStreams  = flag.Int("streams", 10, "concurrent streams/goroutines per connection")
 	duration    = flag.Duration("duration", 30*time.Second, "test duration")
 	payloadSize = flag.Int("payload", 0, "request payload size in bytes (0 = use default 'stress' message)")
 	cpuProfile  = flag.String("cpuprofile", "", "write CPU profile to file")
 	memProfile  = flag.String("memprofile", "", "write heap profile to file")
+	mode        = flag.String("mode", "grpcws", "protocol mode: grpcws | connect-h1 | connect-h2")
+	connectAddr = flag.String("connect-addr", "http://localhost:8090/echo.v1.Echo/Echo", "Connect echo server URL")
 )
 
 // workerResult holds per-goroutine stats (no mutex needed — one goroutine owns it).
@@ -66,14 +75,40 @@ func main() {
 	runCtx, runCancel := context.WithDeadline(ctx, deadline)
 	defer runCancel()
 
-	fmt.Printf("Connecting to %s\n", *addr)
-	fmt.Printf("Connections: %d  Streams/conn: %d  Duration: %s\n\n",
-		*numConns, *numStreams, *duration)
+	switch *mode {
+	case "connect-h1", "connect-h2":
+		fmt.Printf("Mode:        %s\n", *mode)
+		fmt.Printf("Endpoint:    %s\n", *connectAddr)
+		fmt.Printf("Goroutines:  %d (%d conns × %d streams)  Duration: %s\n\n",
+			*numConns**numStreams, *numConns, *numStreams, *duration)
+		runConnectMode(runCtx)
+	default:
+		fmt.Printf("Mode:        grpcws\n")
+		fmt.Printf("Connecting to %s\n", *addr)
+		fmt.Printf("Connections: %d  Streams/conn: %d  Duration: %s\n\n",
+			*numConns, *numStreams, *duration)
+		runGrpcwsMode(runCtx, ctx)
+	}
 
+	if *memProfile != "" {
+		f, err := os.Create(*memProfile)
+		if err != nil {
+			log.Fatalf("create mem profile: %v", err)
+		}
+		defer f.Close()
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatalf("write mem profile: %v", err)
+		}
+		fmt.Printf("\nHeap profile written to %s\n", *memProfile)
+	}
+}
+
+// ── grpcws mode ───────────────────────────────────────────────────────────────
+
+func runGrpcwsMode(runCtx, dialCtx context.Context) {
 	workerResults := make([]workerResult, *numConns**numStreams)
 	var wg sync.WaitGroup
 
-	// Build request payload — either a fixed-size byte string or the default.
 	var reqPayload []byte
 	if *payloadSize > 0 {
 		reqPayload, _ = proto.Marshal(&echov1.Msg{Value: string(make([]byte, *payloadSize))})
@@ -84,12 +119,11 @@ func main() {
 
 	workerIdx := 0
 	for c := 0; c < *numConns; c++ {
-		conn, err := newConn(ctx, *addr)
+		conn, err := newConn(dialCtx, *addr)
 		if err != nil {
 			log.Printf("conn %d: dial failed: %v", c, err)
 			continue
 		}
-
 		for s := 0; s < *numStreams; s++ {
 			idx := workerIdx
 			workerIdx++
@@ -104,7 +138,6 @@ func main() {
 
 	wg.Wait()
 
-	// Merge results.
 	var totalCompleted, totalErrors int64
 	var allLatencies []int64
 	for i := range workerResults {
@@ -112,43 +145,7 @@ func main() {
 		totalErrors += workerResults[i].errors
 		allLatencies = append(allLatencies, workerResults[i].latencies...)
 	}
-
-	elapsed := *duration
-	rps := float64(totalCompleted) / elapsed.Seconds()
-
-	fmt.Printf("── Results ───────────────────────────────────────────────\n")
-	fmt.Printf("  Total RPCs:  %d\n", totalCompleted)
-	fmt.Printf("  Throughput:  %.0f RPC/s\n", rps)
-	if totalErrors > 0 {
-		fmt.Printf("  Errors:      %d (%.1f%%)\n", totalErrors,
-			100*float64(totalErrors)/float64(totalCompleted+totalErrors))
-	} else {
-		fmt.Printf("  Errors:      0\n")
-	}
-
-	if len(allLatencies) > 0 {
-		sort.Slice(allLatencies, func(i, j int) bool { return allLatencies[i] < allLatencies[j] })
-		n := len(allLatencies)
-		fmt.Printf("  Latency:\n")
-		fmt.Printf("    mean  %s\n", fmtNs(mean(allLatencies)))
-		fmt.Printf("    p50   %s\n", fmtNs(allLatencies[n*50/100]))
-		fmt.Printf("    p90   %s\n", fmtNs(allLatencies[n*90/100]))
-		fmt.Printf("    p95   %s\n", fmtNs(allLatencies[n*95/100]))
-		fmt.Printf("    p99   %s\n", fmtNs(allLatencies[n*99/100]))
-		fmt.Printf("    max   %s\n", fmtNs(allLatencies[n-1]))
-	}
-
-	if *memProfile != "" {
-		f, err := os.Create(*memProfile)
-		if err != nil {
-			log.Fatalf("create mem profile: %v", err)
-		}
-		defer f.Close()
-		if err := pprof.WriteHeapProfile(f); err != nil {
-			log.Fatalf("write mem profile: %v", err)
-		}
-		fmt.Printf("\nHeap profile written to %s\n", *memProfile)
-	}
+	printResults(totalCompleted, totalErrors, float64(totalCompleted)/duration.Seconds(), allLatencies)
 }
 
 // ── Per-connection state ──────────────────────────────────────────────────────
@@ -316,6 +313,31 @@ func drainUnary(ctx context.Context, ch <-chan frame.Frame) bool {
 		}
 	}
 	return true
+}
+
+// ── Shared output ─────────────────────────────────────────────────────────────
+
+func printResults(totalCompleted, totalErrors int64, rps float64, allLatencies []int64) {
+	fmt.Printf("── Results ───────────────────────────────────────────────\n")
+	fmt.Printf("  Total RPCs:  %d\n", totalCompleted)
+	fmt.Printf("  Throughput:  %.0f RPC/s\n", rps)
+	if totalErrors > 0 {
+		fmt.Printf("  Errors:      %d (%.1f%%)\n", totalErrors,
+			100*float64(totalErrors)/float64(totalCompleted+totalErrors))
+	} else {
+		fmt.Printf("  Errors:      0\n")
+	}
+	if len(allLatencies) > 0 {
+		sort.Slice(allLatencies, func(i, j int) bool { return allLatencies[i] < allLatencies[j] })
+		n := len(allLatencies)
+		fmt.Printf("  Latency:\n")
+		fmt.Printf("    mean  %s\n", fmtNs(mean(allLatencies)))
+		fmt.Printf("    p50   %s\n", fmtNs(allLatencies[n*50/100]))
+		fmt.Printf("    p90   %s\n", fmtNs(allLatencies[n*90/100]))
+		fmt.Printf("    p95   %s\n", fmtNs(allLatencies[n*95/100]))
+		fmt.Printf("    p99   %s\n", fmtNs(allLatencies[n*99/100]))
+		fmt.Printf("    max   %s\n", fmtNs(allLatencies[n-1]))
+	}
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
