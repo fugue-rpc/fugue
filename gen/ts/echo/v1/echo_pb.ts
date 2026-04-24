@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file echo/v1/echo.proto.
  */
 export const file_echo_v1_echo: GenFile = /*@__PURE__*/
-  fileDesc("ChJlY2hvL3YxL2VjaG8ucHJvdG8SB2VjaG8udjEiFAoDTXNnEg0KBXZhbHVlGAEgASgJMq8BCgRFY2hvEiIKBEVjaG8SDC5lY2hvLnYxLk1zZxoMLmVjaG8udjEuTXNnEioKCkVjaG9TdHJlYW0SDC5lY2hvLnYxLk1zZxoMLmVjaG8udjEuTXNnMAESKwoLRWNob0NvbGxlY3QSDC5lY2hvLnYxLk1zZxoMLmVjaG8udjEuTXNnKAESKgoIRWNob0JpZGkSDC5lY2hvLnYxLk1zZxoMLmVjaG8udjEuTXNnKAEwAUIpWidnaXRodWIuY29tL2dycGN3cy93c2dycGMvZWNoby92MTtlY2hvdjFiBnByb3RvMw");
+  fileDesc("ChJlY2hvL3YxL2VjaG8ucHJvdG8SB2VjaG8udjEiFAoDTXNnEg0KBXZhbHVlGAEgASgJIioKClN0cmVhbU5SZXESDQoFdmFsdWUYASABKAkSDQoFY291bnQYAiABKAUy4wEKBEVjaG8SIgoERWNobxIMLmVjaG8udjEuTXNnGgwuZWNoby52MS5Nc2cSKgoKRWNob1N0cmVhbRIMLmVjaG8udjEuTXNnGgwuZWNoby52MS5Nc2cwARIrCgtFY2hvQ29sbGVjdBIMLmVjaG8udjEuTXNnGgwuZWNoby52MS5Nc2coARIqCghFY2hvQmlkaRIMLmVjaG8udjEuTXNnGgwuZWNoby52MS5Nc2coATABEjIKC0VjaG9TdHJlYW1OEhMuZWNoby52MS5TdHJlYW1OUmVxGgwuZWNoby52MS5Nc2cwAUIpWidnaXRodWIuY29tL2dycGN3cy93c2dycGMvZWNoby92MTtlY2hvdjFiBnByb3RvMw");
 
 /**
  * @generated from message echo.v1.Msg
@@ -28,6 +28,28 @@ export type Msg = Message<"echo.v1.Msg"> & {
  */
 export const MsgSchema: GenMessage<Msg> = /*@__PURE__*/
   messageDesc(file_echo_v1_echo, 0);
+
+/**
+ * @generated from message echo.v1.StreamNReq
+ */
+export type StreamNReq = Message<"echo.v1.StreamNReq"> & {
+  /**
+   * @generated from field: string value = 1;
+   */
+  value: string;
+
+  /**
+   * @generated from field: int32 count = 2;
+   */
+  count: number;
+};
+
+/**
+ * Describes the message echo.v1.StreamNReq.
+ * Use `create(StreamNReqSchema)` to create a new message.
+ */
+export const StreamNReqSchema: GenMessage<StreamNReq> = /*@__PURE__*/
+  messageDesc(file_echo_v1_echo, 1);
 
 /**
  * @generated from service echo.v1.Echo
@@ -71,6 +93,16 @@ export const Echo: GenService<{
   echoBidi: {
     methodKind: "bidi_streaming";
     input: typeof MsgSchema;
+    output: typeof MsgSchema;
+  },
+  /**
+   * Server-streaming N: configurable response count for benchmarking.
+   *
+   * @generated from rpc echo.v1.Echo.EchoStreamN
+   */
+  echoStreamN: {
+    methodKind: "server_streaming";
+    input: typeof StreamNReqSchema;
     output: typeof MsgSchema;
   },
 }> = /*@__PURE__*/

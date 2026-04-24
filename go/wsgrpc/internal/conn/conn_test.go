@@ -105,15 +105,17 @@ func (c *clientConn) readLoop(ctx context.Context) {
 			c.mu.Unlock()
 			return
 		}
-		f, err := frame.Decode(msg)
+		frames, err := frame.DecodeAll(msg)
 		if err != nil {
 			continue
 		}
-		c.mu.Lock()
-		ch := c.streams[f.StreamID]
-		c.mu.Unlock()
-		if ch != nil {
-			ch <- f
+		for _, f := range frames {
+			c.mu.Lock()
+			ch := c.streams[f.StreamID]
+			c.mu.Unlock()
+			if ch != nil {
+				ch <- f
+			}
 		}
 	}
 }

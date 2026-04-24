@@ -1,5 +1,5 @@
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
-import { decodeFrame, encodeFrame, FrameType } from "./frame.js";
+import { decodeAll, encodeFrame, FrameType } from "./frame.js";
 import { BeginPayloadSchema, EndPayloadSchema } from "./gen/frame_pb.js";
 import { RawStream } from "./raw-stream.js";
 
@@ -41,7 +41,11 @@ export class WsGrpcTransport {
 
     ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
       try {
-        this._handleFrame(new Uint8Array(event.data));
+        // One WebSocket message may contain multiple coalesced frames.
+        // Each frame is dispatched and logged individually (debug mode).
+        for (const frame of decodeAll(new Uint8Array(event.data))) {
+          this._handleFrame(frame);
+        }
       } catch (err) {
         console.warn("wsgrpc: malformed frame from server, closing transport", err);
         this._ws.close();
@@ -128,8 +132,7 @@ export class WsGrpcTransport {
     }
   }
 
-  private _handleFrame(buf: Uint8Array): void {
-    const { type, streamId, payload } = decodeFrame(buf);
+  private _handleFrame({ type, streamId, payload }: { type: number; streamId: number; payload: Uint8Array }): void {
     if (this._debug) {
       console.debug("wsgrpc ▼", { type, streamId, payloadBytes: payload.length });
     }

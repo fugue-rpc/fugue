@@ -13,6 +13,8 @@ import type {
 import {
   type Msg,
   MsgSchema,
+  type StreamNReq,
+  StreamNReqSchema,
 } from "./echo_pb.js";
 
 export class EchoClient {
@@ -46,6 +48,12 @@ export class EchoClient {
         (req: Msg) => toBinary(MsgSchema, req),
         (b) => fromBinary(MsgSchema, b),
       );
+  }
+
+  echoStreamN(req: StreamNReq): ServerStream<Msg> {
+    return this.transport
+      .openStream("/echo.v1.Echo/EchoStreamN")
+      .serverStream(toBinary(StreamNReqSchema, req), (b) => fromBinary(MsgSchema, b));
   }
 
 }

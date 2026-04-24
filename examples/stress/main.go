@@ -2,11 +2,17 @@
 //
 // Modes:
 //
-//	grpcws (default) — grpcws WebSocket protocol
+//	grpcws (default) — grpcws WebSocket unary
 //	  stress -addr ws://localhost:8080/wsgrpc/ -conns 10 -streams 10 -duration 30s
 //
-//	connect-h1 / connect-h2 — Connect protocol over HTTP/1.1 or HTTP/2 (h2c)
+//	connect-h1 / connect-h2 — Connect protocol unary over HTTP/1.1 or HTTP/2 (h2c)
 //	  stress -mode connect-h1 -connect-addr http://localhost:8090/echo.v1.Echo/Echo -conns 10 -streams 10
+//
+//	stream-server / stream-client / stream-bidi — grpcws streaming modes
+//	  stress -mode stream-server -msgs-per-stream 100 -conns 10 -streams 10
+//
+//	connect-stream — Connect-ES server-streaming (comparison for stream-server only)
+//	  stress -mode connect-stream -connect-stream-addr http://localhost:8090/echo.v1.Echo/EchoStreamN
 //
 // Profiling:
 //
@@ -35,22 +41,25 @@ import (
 )
 
 var (
-	addr        = flag.String("addr", "ws://localhost:8080/wsgrpc/", "grpcws WebSocket address")
-	numConns    = flag.Int("conns", 10, "number of connections (WebSocket conns or HTTP client instances)")
-	numStreams  = flag.Int("streams", 10, "concurrent streams/goroutines per connection")
-	duration    = flag.Duration("duration", 30*time.Second, "test duration")
-	payloadSize = flag.Int("payload", 0, "request payload size in bytes (0 = use default 'stress' message)")
-	cpuProfile  = flag.String("cpuprofile", "", "write CPU profile to file")
-	memProfile  = flag.String("memprofile", "", "write heap profile to file")
-	mode        = flag.String("mode", "grpcws", "protocol mode: grpcws | connect-h1 | connect-h2")
-	connectAddr = flag.String("connect-addr", "http://localhost:8090/echo.v1.Echo/Echo", "Connect echo server URL")
+	addr              = flag.String("addr", "ws://localhost:8080/wsgrpc/", "grpcws WebSocket address")
+	numConns          = flag.Int("conns", 10, "number of connections (WebSocket conns or HTTP client instances)")
+	numStreams        = flag.Int("streams", 10, "concurrent streams/goroutines per connection")
+	duration          = flag.Duration("duration", 30*time.Second, "test duration")
+	payloadSize       = flag.Int("payload", 0, "request payload size in bytes (0 = use default 'stress' message)")
+	cpuProfile        = flag.String("cpuprofile", "", "write CPU profile to file")
+	memProfile        = flag.String("memprofile", "", "write heap profile to file")
+	mode              = flag.String("mode", "grpcws", "protocol mode: grpcws | connect-h1 | connect-h2 | stream-server | stream-client | stream-bidi | connect-stream")
+	connectAddr       = flag.String("connect-addr", "http://localhost:8090/echo.v1.Echo/Echo", "Connect unary echo server URL")
+	connectStreamAddr = flag.String("connect-stream-addr", "http://localhost:8090/echo.v1.Echo/EchoStreamN", "Connect server-streaming echo server URL")
+	msgsPerStream     = flag.Int("msgs-per-stream", 100, "messages per stream for streaming modes")
 )
 
 // workerResult holds per-goroutine stats (no mutex needed — one goroutine owns it).
 type workerResult struct {
-	completed int64
-	errors    int64
-	latencies []int64 // nanoseconds
+	completed     int64
+	errors        int64
+	latencies     []int64 // per-stream e2e latency (ns)
+	ttfmLatencies []int64 // time-to-first-message, for streaming modes (ns)
 }
 
 func main() {
@@ -82,6 +91,18 @@ func main() {
 		fmt.Printf("Goroutines:  %d (%d conns × %d streams)  Duration: %s\n\n",
 			*numConns**numStreams, *numConns, *numStreams, *duration)
 		runConnectMode(runCtx)
+	case "stream-server":
+		runStreamServerMode(runCtx, ctx)
+	case "stream-client":
+		runStreamClientMode(runCtx, ctx)
+	case "stream-bidi":
+		runStreamBidiMode(runCtx, ctx)
+	case "connect-stream":
+		fmt.Printf("Mode:        connect-stream (Connect-ES server-streaming)\n")
+		fmt.Printf("Endpoint:    %s\n", *connectStreamAddr)
+		fmt.Printf("Goroutines:  %d (%d conns × %d streams)  Msgs/stream: %d  Duration: %s\n\n",
+			*numConns**numStreams, *numConns, *numStreams, *msgsPerStream, *duration)
+		runConnectStreamMode(runCtx)
 	default:
 		fmt.Printf("Mode:        grpcws\n")
 		fmt.Printf("Connecting to %s\n", *addr)
@@ -190,17 +211,22 @@ func (c *connState) readLoop(ctx context.Context) {
 		if err != nil {
 			return
 		}
-		f, err := frame.Decode(msg)
+		// One WebSocket message may contain multiple coalesced frames from the
+		// server's write-queue batching. Decode all of them and route each to
+		// its stream channel.
+		frames, err := frame.DecodeAll(msg)
 		if err != nil {
 			continue
 		}
-		c.chMu.RLock()
-		ch := c.chans[f.StreamID]
-		c.chMu.RUnlock()
-		if ch != nil {
-			select {
-			case ch <- f:
-			default: // drop if consumer is too slow (shouldn't happen for unary)
+		for _, f := range frames {
+			c.chMu.RLock()
+			ch := c.chans[f.StreamID]
+			c.chMu.RUnlock()
+			if ch != nil {
+				select {
+				case ch <- f:
+				default: // drop if consumer is too slow (shouldn't happen for unary)
+				}
 			}
 		}
 	}
@@ -211,8 +237,9 @@ func (c *connState) readLoop(ctx context.Context) {
 // server always sees BEGIN frames in strictly ascending stream-ID order, which
 // is required by the protocol (§5.1). Any other write ordering would cause the
 // server to close the connection with code 1002.
-func (c *connState) beginStream(beginPayload []byte) (uint32, <-chan frame.Frame, error) {
-	ch := make(chan frame.Frame, 8)
+// chanCap sets the receive channel capacity; pass 8 for unary, msgsPerStream+8 for streaming.
+func (c *connState) beginStream(beginPayload []byte, chanCap int) (uint32, <-chan frame.Frame, error) {
+	ch := make(chan frame.Frame, chanCap)
 	c.writeMu.Lock()
 	c.nextID++
 	id := c.nextID
@@ -260,7 +287,7 @@ func runWorker(ctx context.Context, conn *connState, reqPayload []byte, res *wor
 		}
 
 		// beginStream atomically allocates ID + sends BEGIN (keeps ID order).
-		id, ch, err := conn.beginStream(beginPayload)
+		id, ch, err := conn.beginStream(beginPayload, 8)
 		start := time.Now()
 		if err != nil {
 			res.errors++

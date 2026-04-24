@@ -13,8 +13,15 @@ service Echo {
   rpc EchoCollect(stream Msg) returns (Msg);
   // Bidi-streaming: each sent message is echoed back immediately.
   rpc EchoBidi(stream Msg) returns (stream Msg);
+  // Server-streaming N: configurable response count for benchmarking.
+  rpc EchoStreamN(StreamNReq) returns (stream Msg);
 }
 
 message Msg {
   string value = 1;
+}
+
+message StreamNReq {
+  string value = 1;
+  int32 count = 2;
 }

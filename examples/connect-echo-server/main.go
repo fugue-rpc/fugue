@@ -40,6 +40,22 @@ func main() {
 		},
 	))
 
+	mux.Handle("/echo.v1.Echo/EchoStreamN", connect.NewServerStreamHandler(
+		"/echo.v1.Echo/EchoStreamN",
+		func(_ context.Context, req *connect.Request[echov1.StreamNReq], stream *connect.ServerStream[echov1.Msg]) error {
+			n := int(req.Msg.Count)
+			if n <= 0 {
+				n = 1
+			}
+			for range n {
+				if err := stream.Send(&echov1.Msg{Value: req.Msg.Value}); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	))
+
 	// h2c wraps the mux so the same listener speaks HTTP/1.1 and HTTP/2.
 	handler := h2c.NewHandler(mux, &http2.Server{})
 

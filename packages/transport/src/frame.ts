@@ -40,6 +40,42 @@ export function encodeFrame(frame: Frame): Uint8Array {
 }
 
 /**
+ * Decodes all frames packed into buf (as produced by the coalescing writer)
+ * and returns them in order. A buf containing a single frame is equivalent
+ * to a single decodeFrame call. Throws if any frame is malformed.
+ */
+export function decodeAll(buf: Uint8Array): Frame[] {
+  const frames: Frame[] = [];
+  let offset = 0;
+  while (offset < buf.length) {
+    const remaining = buf.subarray(offset);
+    if (remaining.length < HEADER_SIZE) {
+      throw new Error(
+        `frame: buffer too short for header (got ${remaining.length} bytes, need ${HEADER_SIZE})`,
+      );
+    }
+    const view = new DataView(remaining.buffer, remaining.byteOffset, remaining.byteLength);
+    const type = view.getUint8(0) as FrameTypeValue;
+    const streamId = view.getUint32(1, false);
+    const payloadLength = view.getUint32(5, false);
+    if (payloadLength > MAX_PAYLOAD_SIZE) {
+      throw new Error(
+        `frame: payload ${payloadLength} bytes exceeds MAX_PAYLOAD_SIZE (${MAX_PAYLOAD_SIZE})`,
+      );
+    }
+    const need = HEADER_SIZE + payloadLength;
+    if (remaining.length < need) {
+      throw new Error(
+        `frame: buffer too short for declared payload length (got ${remaining.length} bytes, need ${need})`,
+      );
+    }
+    frames.push({ type, streamId, payload: remaining.slice(HEADER_SIZE, need) });
+    offset += need;
+  }
+  return frames;
+}
+
+/**
  * Decodes a complete frame from buf.
  * buf must contain at least the 9-byte header plus the declared payload length.
  * Extra trailing bytes are ignored.

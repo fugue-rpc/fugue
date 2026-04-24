@@ -79,3 +79,16 @@ func (e *echoImpl) EchoBidi(stream grpc.BidiStreamingServer[echov1.Msg, echov1.M
 		}
 	}
 }
+
+func (e *echoImpl) EchoStreamN(req *echov1.StreamNReq, stream grpc.ServerStreamingServer[echov1.Msg]) error {
+	n := int(req.Count)
+	if n <= 0 {
+		n = 1
+	}
+	for i := 0; i < n; i++ {
+		if err := stream.Send(&echov1.Msg{Value: req.Value}); err != nil {
+			return err
+		}
+	}
+	return nil
+}

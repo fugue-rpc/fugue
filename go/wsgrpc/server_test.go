@@ -82,9 +82,12 @@ func wsURL(srv *httptest.Server) string {
 }
 
 // testConn is a minimal WebSocket client that sends and receives grpcws frames.
+// frameBuf holds decoded frames that arrived in the same coalesced WebSocket
+// message as a previously consumed frame; it is drained before the next Read.
 type testConn struct {
-	ws      *websocket.Conn
-	writeMu sync.Mutex
+	ws       *websocket.Conn
+	writeMu  sync.Mutex
+	frameBuf []frame.Frame
 }
 
 func dial(ctx context.Context, t testing.TB, url string) *testConn {
@@ -135,14 +138,20 @@ func (c *testConn) sendEnd(ctx context.Context, t testing.TB, id uint32) {
 
 func (c *testConn) readFrame(ctx context.Context, t testing.TB) frame.Frame {
 	t.Helper()
-	_, msg, err := c.ws.Read(ctx)
-	if err != nil {
-		t.Fatalf("ws.Read: %v", err)
+	// Drain any frames left over from the previous coalesced WebSocket message.
+	for len(c.frameBuf) == 0 {
+		_, msg, err := c.ws.Read(ctx)
+		if err != nil {
+			t.Fatalf("ws.Read: %v", err)
+		}
+		frames, err := frame.DecodeAll(msg)
+		if err != nil {
+			t.Fatalf("decode frames: %v", err)
+		}
+		c.frameBuf = frames
 	}
-	f, err := frame.Decode(msg)
-	if err != nil {
-		t.Fatalf("decode frame: %v", err)
-	}
+	f := c.frameBuf[0]
+	c.frameBuf = c.frameBuf[1:]
 	return f
 }
 
@@ -311,12 +320,14 @@ func TestMaxConcurrentStreams(t *testing.T) {
 			if err != nil {
 				return
 			}
-			f, err := frame.Decode(msg)
+			frames, err := frame.DecodeAll(msg)
 			if err != nil {
 				continue
 			}
-			if ch := streams[f.StreamID]; ch != nil {
-				ch <- f
+			for _, f := range frames {
+				if ch := streams[f.StreamID]; ch != nil {
+					ch <- f
+				}
 			}
 		}
 	}()
@@ -400,15 +411,17 @@ func TestConcurrent20Streams(t *testing.T) {
 			if err != nil {
 				return
 			}
-			f, err := frame.Decode(msg)
+			frames, err := frame.DecodeAll(msg)
 			if err != nil {
 				continue
 			}
-			cm.mu.Lock()
-			ch := cm.m[f.StreamID]
-			cm.mu.Unlock()
-			if ch != nil {
-				ch <- f
+			for _, f := range frames {
+				cm.mu.Lock()
+				ch := cm.m[f.StreamID]
+				cm.mu.Unlock()
+				if ch != nil {
+					ch <- f
+				}
 			}
 		}
 	}()
@@ -518,15 +531,21 @@ func BenchmarkBidiEcho(b *testing.B) {
 			b.Fatalf("ws.Write: %v", err)
 		}
 	}
+	var bidiFrameBuf []frame.Frame
 	recvFrame := func() frame.Frame {
-		_, raw, err := ws.Read(ctx)
-		if err != nil {
-			b.Fatalf("ws.Read: %v", err)
+		for len(bidiFrameBuf) == 0 {
+			_, raw, err := ws.Read(ctx)
+			if err != nil {
+				b.Fatalf("ws.Read: %v", err)
+			}
+			frames, err := frame.DecodeAll(raw)
+			if err != nil {
+				b.Fatalf("frame.DecodeAll: %v", err)
+			}
+			bidiFrameBuf = frames
 		}
-		f, err := frame.Decode(raw)
-		if err != nil {
-			b.Fatalf("frame.Decode: %v", err)
-		}
+		f := bidiFrameBuf[0]
+		bidiFrameBuf = bidiFrameBuf[1:]
 		return f
 	}
 

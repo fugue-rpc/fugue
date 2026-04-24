@@ -27,6 +27,7 @@ type Server struct {
 	log         *slog.Logger
 	recvBufSize int
 	maxStreams   int
+	codec       Codec // nil → default proto
 }
 
 type methodEntry struct {
@@ -121,6 +122,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) onStream(str *stream.Stream) {
 	s.mu.RLock()
 	entry, ok := s.methods[str.Method()]
+	codec := s.codec
 	s.mu.RUnlock()
 
 	if !ok {
@@ -128,16 +130,20 @@ func (s *Server) onStream(str *stream.Stream) {
 		return
 	}
 
+	if codec != nil {
+		str.SetCodec(codec)
+	}
+
 	var err error
 	if entry.unary != nil {
-		err = s.dispatchUnary(str, entry)
+		err = s.dispatchUnary(str, entry, codec)
 	} else {
 		err = entry.streaming(entry.impl, str)
 	}
 	_ = str.SendEnd(err)
 }
 
-func (s *Server) dispatchUnary(str *stream.Stream, entry methodEntry) error {
+func (s *Server) dispatchUnary(str *stream.Stream, entry methodEntry, codec Codec) error {
 	// Wait for the single request message.
 	var payload []byte
 	select {
@@ -150,8 +156,11 @@ func (s *Server) dispatchUnary(str *stream.Stream, entry methodEntry) error {
 		return status.Error(codes.Canceled, "stream cancelled before request arrived")
 	}
 
-	dec := func(m any) error {
-		return proto.Unmarshal(payload, m.(proto.Message))
+	var dec func(m any) error
+	if codec != nil {
+		dec = func(m any) error { return codec.Unmarshal(payload, m) }
+	} else {
+		dec = func(m any) error { return proto.Unmarshal(payload, m.(proto.Message)) }
 	}
 	resp, err := entry.unary(entry.impl, str.Context(), dec, nil)
 	if err != nil {

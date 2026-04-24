@@ -21,6 +21,14 @@ type Sink interface {
 	WriteFrame(typ uint8, streamID uint32, payload []byte) error
 }
 
+// MsgCodec is the pluggable serialisation interface for user message types.
+// When nil (the default), Stream falls back to proto.Marshal / proto.Unmarshal.
+// Set via SetCodec; satisfies wsgrpc.Codec (a superset with a Name method).
+type MsgCodec interface {
+	Marshal(v any) ([]byte, error)
+	Unmarshal(data []byte, v any) error
+}
+
 // Stream is the per-RPC stream object. It implements grpc.ServerStream.
 type Stream struct {
 	ctx           context.Context
@@ -28,6 +36,7 @@ type Stream struct {
 	streamID      uint32
 	method        string // full gRPC method path, e.g. "/echo.v1.Echo/Echo"
 	sink          Sink
+	codec         MsgCodec   // nil → default proto; set by server before dispatching
 	RecvCh        chan []byte // fed by conn.Conn on MSG arrival; exported for test setup
 	closeRecvOnce sync.Once
 	sentEnd       sync.Once  // ensures exactly one END frame is sent per stream
@@ -60,6 +69,15 @@ func New(ctx context.Context, cancel context.CancelFunc, id uint32, method strin
 
 // Method returns the full gRPC method path from the BEGIN frame.
 func (s *Stream) Method() string { return s.method }
+
+// SetCodec injects a custom message codec. Must be called before the first
+// SendMsg / RecvMsg — typically by the server dispatch layer before handing
+// the stream to the handler goroutine.
+func (s *Stream) SetCodec(c MsgCodec) {
+	s.mu.Lock()
+	s.codec = c
+	s.mu.Unlock()
+}
 
 // Deliver enqueues an inbound MSG payload. Returns false if the buffer is full,
 // in which case the caller is responsible for terminating the stream.
@@ -156,6 +174,12 @@ func (s *Stream) SetTrailer(md metadata.MD) {
 	s.trailer = metadata.Join(s.trailer, md)
 }
 
+// protoMsgWriter is the zero-copy interface implemented by conn.Conn.
+// Recognised via type assertion so the recording sink in tests is unaffected.
+type protoMsgWriter interface {
+	WriteMsgProto(streamID uint32, msg proto.Message) error
+}
+
 func (s *Stream) SendMsg(m any) error {
 	s.mu.Lock()
 	if !s.headerSent {
@@ -164,8 +188,24 @@ func (s *Stream) SendMsg(m any) error {
 			return err
 		}
 	}
+	codec := s.codec
 	s.mu.Unlock()
-	b, err := proto.Marshal(m.(proto.Message))
+
+	if codec == nil {
+		// Default proto path: use zero-copy WriteMsgProto fast path when available.
+		msg := m.(proto.Message)
+		if mw, ok := s.sink.(protoMsgWriter); ok {
+			return mw.WriteMsgProto(s.streamID, msg)
+		}
+		b, err := proto.Marshal(msg)
+		if err != nil {
+			return err
+		}
+		return s.sink.WriteFrame(frame.TypeMSG, s.streamID, b)
+	}
+
+	// Custom codec path: marshal via the injected codec.
+	b, err := codec.Marshal(m)
 	if err != nil {
 		return err
 	}
@@ -176,6 +216,9 @@ func (s *Stream) RecvMsg(m any) error {
 	payload, ok := <-s.RecvCh
 	if !ok {
 		return io.EOF
+	}
+	if s.codec != nil {
+		return s.codec.Unmarshal(payload, m)
 	}
 	return proto.Unmarshal(payload, m.(proto.Message))
 }

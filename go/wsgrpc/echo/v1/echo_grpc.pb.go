@@ -23,6 +23,7 @@ const (
 	Echo_EchoStream_FullMethodName  = "/echo.v1.Echo/EchoStream"
 	Echo_EchoCollect_FullMethodName = "/echo.v1.Echo/EchoCollect"
 	Echo_EchoBidi_FullMethodName    = "/echo.v1.Echo/EchoBidi"
+	Echo_EchoStreamN_FullMethodName = "/echo.v1.Echo/EchoStreamN"
 )
 
 // EchoClient is the client API for Echo service.
@@ -37,6 +38,8 @@ type EchoClient interface {
 	EchoCollect(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[Msg, Msg], error)
 	// Bidi-streaming: each sent message is echoed back immediately.
 	EchoBidi(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[Msg, Msg], error)
+	// Server-streaming N: configurable response count for benchmarking.
+	EchoStreamN(ctx context.Context, in *StreamNReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Msg], error)
 }
 
 type echoClient struct {
@@ -102,6 +105,25 @@ func (c *echoClient) EchoBidi(ctx context.Context, opts ...grpc.CallOption) (grp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Echo_EchoBidiClient = grpc.BidiStreamingClient[Msg, Msg]
 
+func (c *echoClient) EchoStreamN(ctx context.Context, in *StreamNReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[Msg], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Echo_ServiceDesc.Streams[3], Echo_EchoStreamN_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamNReq, Msg]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Echo_EchoStreamNClient = grpc.ServerStreamingClient[Msg]
+
 // EchoServer is the server API for Echo service.
 // All implementations must embed UnimplementedEchoServer
 // for forward compatibility.
@@ -114,6 +136,8 @@ type EchoServer interface {
 	EchoCollect(grpc.ClientStreamingServer[Msg, Msg]) error
 	// Bidi-streaming: each sent message is echoed back immediately.
 	EchoBidi(grpc.BidiStreamingServer[Msg, Msg]) error
+	// Server-streaming N: configurable response count for benchmarking.
+	EchoStreamN(*StreamNReq, grpc.ServerStreamingServer[Msg]) error
 	mustEmbedUnimplementedEchoServer()
 }
 
@@ -135,6 +159,9 @@ func (UnimplementedEchoServer) EchoCollect(grpc.ClientStreamingServer[Msg, Msg])
 }
 func (UnimplementedEchoServer) EchoBidi(grpc.BidiStreamingServer[Msg, Msg]) error {
 	return status.Error(codes.Unimplemented, "method EchoBidi not implemented")
+}
+func (UnimplementedEchoServer) EchoStreamN(*StreamNReq, grpc.ServerStreamingServer[Msg]) error {
+	return status.Error(codes.Unimplemented, "method EchoStreamN not implemented")
 }
 func (UnimplementedEchoServer) mustEmbedUnimplementedEchoServer() {}
 func (UnimplementedEchoServer) testEmbeddedByValue()              {}
@@ -200,6 +227,17 @@ func _Echo_EchoBidi_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Echo_EchoBidiServer = grpc.BidiStreamingServer[Msg, Msg]
 
+func _Echo_EchoStreamN_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamNReq)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(EchoServer).EchoStreamN(m, &grpc.GenericServerStream[StreamNReq, Msg]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Echo_EchoStreamNServer = grpc.ServerStreamingServer[Msg]
+
 // Echo_ServiceDesc is the grpc.ServiceDesc for Echo service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -228,6 +266,11 @@ var Echo_ServiceDesc = grpc.ServiceDesc{
 			Handler:       _Echo_EchoBidi_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "EchoStreamN",
+			Handler:       _Echo_EchoStreamN_Handler,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "echo/v1/echo.proto",

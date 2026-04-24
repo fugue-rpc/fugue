@@ -75,3 +75,35 @@ func Decode(buf []byte) (Frame, error) {
 		Payload:  payload,
 	}, nil
 }
+
+// DecodeAll parses all frames packed into buf (as produced by the coalescing
+// writer) and returns them in order. Returns an error if any frame is malformed.
+// A buf that contains exactly one frame is equivalent to a single Decode call.
+func DecodeAll(buf []byte) ([]Frame, error) {
+	var frames []Frame
+	for len(buf) > 0 {
+		if len(buf) < HeaderSize {
+			return frames, ErrShortHeader
+		}
+		payloadLen := binary.BigEndian.Uint32(buf[5:9])
+		if payloadLen > MaxPayloadSize {
+			return frames, ErrPayloadTooLarge
+		}
+		need := HeaderSize + int(payloadLen)
+		if len(buf) < need {
+			return frames, ErrShortPayload
+		}
+		var payload []byte
+		if payloadLen > 0 {
+			payload = make([]byte, payloadLen)
+			copy(payload, buf[HeaderSize:need])
+		}
+		frames = append(frames, Frame{
+			Type:     buf[0],
+			StreamID: binary.BigEndian.Uint32(buf[1:5]),
+			Payload:  payload,
+		})
+		buf = buf[need:]
+	}
+	return frames, nil
+}
