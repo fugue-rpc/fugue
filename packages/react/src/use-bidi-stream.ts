@@ -10,7 +10,12 @@ export type BidiStreamState<Res> =
 
 export interface UseBidiStreamResult<Req, Res> {
   state: BidiStreamState<Res>;
-  open(): void;
+  /**
+   * Open the stream. No-ops if the stream is already open — call `cancel()` or
+   * `reset()` first if you need to restart. Optionally send an initial request
+   * immediately after opening (useful for subscribe/auth patterns).
+   */
+  open(initialRequest?: Req): void;
   send(req: Req): void;
   halfClose(): void;
   cancel(): void;
@@ -21,6 +26,12 @@ export interface UseBidiStreamResult<Req, Res> {
  * Manages a bidirectional-streaming RPC.
  *
  * @param call - Factory that opens a bidi stream (no request argument).
+ *
+ * @remarks Each incoming message triggers a React state update with a shallow
+ * copy of the accumulated messages array. This is O(n) per message and O(n²)
+ * in total copy operations over the lifetime of a stream. For streams
+ * delivering many messages at high frequency, consume `transport.openStream()`
+ * directly and manage state yourself.
  */
 export function useBidiStream<Req, Res>(
   call: () => BidiStream<Req, Res>,
@@ -37,35 +48,43 @@ export function useBidiStream<Req, Res>(
     cancelledRef.current = true;
   }, []);
 
-  const open = useCallback(() => {
-    cancel();
-    cancelledRef.current = false;
-    const stream = call();
-    streamRef.current = stream;
-    setState({ status: "open", messages: [] });
+  const open = useCallback(
+    (initialRequest?: Req) => {
+      // Guard: no-op when already open. Caller must cancel() or reset() first.
+      if (streamRef.current !== null) return;
 
-    (async () => {
-      const msgs: Res[] = [];
-      try {
-        for await (const msg of stream) {
-          if (cancelledRef.current) return;
-          msgs.push(msg);
-          setState({ status: "open", messages: [...msgs] });
+      cancelledRef.current = false;
+      const stream = call();
+      streamRef.current = stream;
+      if (initialRequest !== undefined) stream.send(initialRequest);
+      setState({ status: "open", messages: [] });
+
+      (async () => {
+        const msgs: Res[] = [];
+        try {
+          for await (const msg of stream) {
+            if (cancelledRef.current) return;
+            msgs.push(msg);
+            setState({ status: "open", messages: [...msgs] });
+          }
+          if (!cancelledRef.current) {
+            streamRef.current = null;
+            setState({ status: "done", messages: msgs });
+          }
+        } catch (err: unknown) {
+          if (!cancelledRef.current) {
+            streamRef.current = null;
+            setState({
+              status: "error",
+              messages: msgs,
+              error: err instanceof Error ? err : new Error(String(err)),
+            });
+          }
         }
-        if (!cancelledRef.current) {
-          setState({ status: "done", messages: msgs });
-        }
-      } catch (err: unknown) {
-        if (!cancelledRef.current) {
-          setState({
-            status: "error",
-            messages: msgs,
-            error: err instanceof Error ? err : new Error(String(err)),
-          });
-        }
-      }
-    })();
-  }, [call, cancel]);
+      })();
+    },
+    [call],
+  );
 
   const send = useCallback((req: Req) => {
     streamRef.current?.send(req);

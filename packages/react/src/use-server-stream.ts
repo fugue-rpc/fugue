@@ -19,6 +19,12 @@ export interface UseServerStreamResult<Req, Res> {
  * Manages a server-streaming RPC.
  *
  * @param call - Factory that opens a server stream given a request.
+ *
+ * @remarks Each incoming message triggers a React state update with a shallow
+ * copy of the accumulated messages array. This is O(n) per message and O(n²)
+ * in total copy operations over the lifetime of a stream. For streams
+ * delivering many messages at high frequency, consume `transport.openStream()`
+ * directly and manage state yourself.
  */
 export function useServerStream<Req, Res>(
   call: (req: Req) => ServerStream<Res>,

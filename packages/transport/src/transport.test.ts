@@ -12,7 +12,9 @@ import { GrpcStatusError, WsGrpcTransport } from "./index.js";
 
 class FakeWebSocket {
   binaryType: string = "arraybuffer";
-  readonly readyState: number = 1; // OPEN
+  // Real WebSockets transition 0→1→2→3. The transport tracks its own _state
+  // and never reads readyState, so the fake holds it at OPEN (1) throughout.
+  readyState: number = 1; // WebSocket.OPEN
   bufferedAmount = 0;
 
   onopen: ((e: Event) => void) | null = null;

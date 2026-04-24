@@ -9,6 +9,7 @@ import (
 	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
 	"github.com/grpcws/wsgrpc/frame"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -94,8 +95,19 @@ func (s *Stream) SendEnd(err error) error {
 	var writeErr error
 	s.sentEnd.Do(func() {
 		st, _ := status.FromError(err)
-		trailers := make(map[string]string)
-		for k, vs := range s.Trailer() {
+
+		s.mu.Lock()
+		trailer := s.trailer
+		s.mu.Unlock()
+
+		// Fast path: OK status with no trailers → zero-byte END payload, no marshal.
+		if st.Code() == codes.OK && len(trailer) == 0 {
+			writeErr = s.sink.WriteFrame(frame.TypeEND, s.streamID, nil)
+			return
+		}
+
+		trailers := make(map[string]string, len(trailer))
+		for k, vs := range trailer {
 			if len(vs) > 0 {
 				trailers[k] = vs[0]
 			}
@@ -169,17 +181,22 @@ func (s *Stream) RecvMsg(m any) error {
 }
 
 // flushHeaderLocked sends a HEADER frame carrying s.header as HeaderPayload.
-// Called with s.mu held.
+// Called with s.mu held. When there are no headers, sends a zero-byte HEADER
+// frame directly without marshalling to avoid unnecessary allocations.
 func (s *Stream) flushHeaderLocked() error {
-	headers := make(map[string]string)
-	for k, vs := range s.header {
-		if len(vs) > 0 {
-			headers[k] = vs[0]
+	var payload []byte
+	if len(s.header) > 0 {
+		headers := make(map[string]string, len(s.header))
+		for k, vs := range s.header {
+			if len(vs) > 0 {
+				headers[k] = vs[0]
+			}
 		}
-	}
-	payload, err := proto.Marshal(&framev1.HeaderPayload{Headers: headers})
-	if err != nil {
-		return err
+		var err error
+		payload, err = proto.Marshal(&framev1.HeaderPayload{Headers: headers})
+		if err != nil {
+			return err
+		}
 	}
 	if err := s.sink.WriteFrame(frame.TypeHEADER, s.streamID, payload); err != nil {
 		return err

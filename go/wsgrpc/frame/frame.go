@@ -64,8 +64,11 @@ func Decode(buf []byte) (Frame, error) {
 	if len(buf) < need {
 		return Frame{}, ErrShortPayload
 	}
-	payload := make([]byte, payloadLen)
-	copy(payload, buf[HeaderSize:need])
+	var payload []byte
+	if payloadLen > 0 {
+		payload = make([]byte, payloadLen)
+		copy(payload, buf[HeaderSize:need])
+	}
 	return Frame{
 		Type:     buf[0],
 		StreamID: binary.BigEndian.Uint32(buf[1:5]),

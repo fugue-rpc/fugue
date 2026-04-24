@@ -4,6 +4,7 @@ package conn
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -18,6 +19,16 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
+
+// frameBufPool recycles the per-frame encode buffer to avoid a heap alloc on
+// every WriteFrame call. Safe because ws.Write is synchronous — the buffer is
+// not referenced after Write returns.
+var frameBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 0, frame.HeaderSize+256)
+		return &b
+	},
+}
 
 // Conn manages one WebSocket connection and the streams multiplexed over it.
 type Conn struct {
@@ -88,7 +99,11 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 		_ = c.ws.Close(websocket.StatusProtocolError, "stream_id 0 is reserved")
 		return fmt.Errorf("conn: stream_id 0 is reserved")
 	}
-	// Serve is single-goroutine so highestID is safe without a lock.
+	// highestID is ONLY read and written inside handleBEGIN, which is always
+	// called from the single Serve read goroutine. No other goroutine touches
+	// it, so no synchronization is needed. WriteFrame and activeStreams are
+	// called from dispatch goroutines and are separately protected (writeMu /
+	// atomic). Do not add concurrent access to highestID without adding a lock.
 	if id <= c.highestID {
 		_ = c.ws.Close(websocket.StatusProtocolError, "non-monotonic stream_id")
 		return fmt.Errorf("conn: stream_id %d not monotonically increasing (highest: %d)", id, c.highestID)
@@ -186,16 +201,27 @@ func (c *Conn) loadStream(id uint32) (*stream.Stream, bool) {
 	return v.(*stream.Stream), true
 }
 
-// WriteFrame implements stream.Sink. Encodes f and writes it to the WebSocket.
-// Safe for concurrent use; writes are serialised under writeMu.
+// WriteFrame implements stream.Sink. Encodes a frame and writes it to the
+// WebSocket. Safe for concurrent use; writes are serialised under writeMu.
+// The encode buffer is pooled to eliminate a heap allocation per call.
 func (c *Conn) WriteFrame(typ uint8, streamID uint32, payload []byte) error {
-	encoded, err := frame.Encode(frame.Frame{Type: typ, StreamID: streamID, Payload: payload})
-	if err != nil {
-		return err
+	if uint32(len(payload)) > frame.MaxPayloadSize {
+		return fmt.Errorf("frame: payload %d bytes exceeds MAX_PAYLOAD_SIZE", len(payload))
 	}
+	bp := frameBufPool.Get().(*[]byte)
+	b := (*bp)[:0]
+	b = append(b, typ)
+	b = binary.BigEndian.AppendUint32(b, streamID)
+	b = binary.BigEndian.AppendUint32(b, uint32(len(payload)))
+	b = append(b, payload...)
+	*bp = b
+
 	c.writeMu.Lock()
-	defer c.writeMu.Unlock()
-	return c.ws.Write(context.Background(), websocket.MessageBinary, encoded)
+	err := c.ws.Write(context.Background(), websocket.MessageBinary, b)
+	c.writeMu.Unlock()
+
+	frameBufPool.Put(bp)
+	return err
 }
 
 func (c *Conn) cancelAllStreams() {

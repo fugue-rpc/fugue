@@ -8,6 +8,12 @@ export type ConnectionState = "connecting" | "open" | "closed";
 export type TransportOptions = {
   /** Initial metadata sent with every request (e.g. authorization headers). */
   metadata?: Record<string, string>;
+  /**
+   * When true, every frame sent and received is logged via `console.debug`.
+   * Useful for debugging CI failures where a test times out and you can't tell
+   * which side stopped sending.
+   */
+  debug?: boolean;
   /** @internal — override WebSocket constructor for testing */
   _wsFactory?: (url: string) => WebSocket;
 };
@@ -18,8 +24,10 @@ export class WsGrpcTransport {
   private _nextStreamId = 1;
   private _state: ConnectionState = "connecting";
   private _pending: Uint8Array[] = [];
+  private readonly _debug: boolean;
 
   constructor(url: string, options?: TransportOptions) {
+    this._debug = options?.debug ?? false;
     const ws = options?._wsFactory
       ? options._wsFactory(url)
       : new WebSocket(url);
@@ -34,8 +42,9 @@ export class WsGrpcTransport {
     ws.onmessage = (event: MessageEvent<ArrayBuffer>) => {
       try {
         this._handleFrame(new Uint8Array(event.data));
-      } catch {
-        // Malformed frame from server — ignore; connection stays alive.
+      } catch (err) {
+        console.warn("wsgrpc: malformed frame from server, closing transport", err);
+        this._ws.close();
       }
     };
 
@@ -104,6 +113,9 @@ export class WsGrpcTransport {
     streamId: number,
     payload: Uint8Array,
   ): void {
+    if (this._debug) {
+      console.debug("wsgrpc ▲", { type, streamId, payloadBytes: payload.length });
+    }
     const encoded = encodeFrame({
       type: type as (typeof FrameType)[keyof typeof FrameType],
       streamId,
@@ -118,6 +130,9 @@ export class WsGrpcTransport {
 
   private _handleFrame(buf: Uint8Array): void {
     const { type, streamId, payload } = decodeFrame(buf);
+    if (this._debug) {
+      console.debug("wsgrpc ▼", { type, streamId, payloadBytes: payload.length });
+    }
 
     switch (type) {
       case FrameType.HEADER:

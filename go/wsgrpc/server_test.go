@@ -270,19 +270,16 @@ func TestUnimplementedMethod(t *testing.T) {
 	c := dial(ctx, t, wsURL(srv))
 	c.sendBegin(ctx, t, 1, "/unknown.Service/NoSuchMethod")
 
-	// Server should respond with HEADER (from auto-flush) then END with Unimplemented.
-	// Actually for unimplemented, no HEADER is sent — server calls SendEnd directly.
-	// But SendEnd uses WriteFrame directly, which never calls flushHeader.
-	// So we just get END.
-	f := c.readFrame(ctx, t)
-	if f.Type != frame.TypeEND {
-		// If a HEADER slipped through, skip it and check the next frame.
-		if f.Type == frame.TypeHEADER {
-			f = c.readFrame(ctx, t)
-		}
-		if f.Type != frame.TypeEND {
-			t.Fatalf("want END for unknown method, got 0x%02x", f.Type)
-		}
+	// Unimplemented handler calls SendEnd directly without any SendMsg, so no
+	// HEADER is auto-flushed (spec §4.5: HEADER only required before MSG).
+	// Expect exactly one END frame carrying UNIMPLEMENTED status.
+	f := c.expectType(ctx, t, frame.TypeEND)
+	var ep framev1.EndPayload
+	if err := proto.Unmarshal(f.Payload, &ep); err != nil {
+		t.Fatalf("unmarshal EndPayload: %v", err)
+	}
+	if codes.Code(ep.StatusCode) != codes.Unimplemented {
+		t.Errorf("status: want Unimplemented, got %v", codes.Code(ep.StatusCode))
 	}
 }
 

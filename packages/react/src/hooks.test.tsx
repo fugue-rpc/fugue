@@ -215,4 +215,47 @@ describe("useBidiStream", () => {
 
     expect(stream.cancel).toHaveBeenCalled();
   });
+
+  it("cancel() immediately after open() never transitions to 'done'", async () => {
+    const stream = makeBidiStream<string, string>([]);
+    const callFn = vi.fn(() => stream);
+    const { result } = renderHook(() => useBidiStream(callFn));
+
+    act(() => {
+      result.current.open();
+      result.current.cancel(); // sync cancel before async reader can finish
+    });
+
+    // Let any pending microtasks drain.
+    await act(async () => {});
+
+    expect(result.current.state.status).not.toBe("done");
+    expect(stream.cancel).toHaveBeenCalled();
+  });
+
+  it("open() is a no-op when stream is already open", () => {
+    let callCount = 0;
+    const callFn = () => {
+      callCount++;
+      return makeBidiStream<string, string>([]);
+    };
+    const { result } = renderHook(() => useBidiStream(callFn));
+
+    act(() => {
+      result.current.open();
+      result.current.open(); // second call must be ignored
+    });
+
+    expect(callCount).toBe(1);
+  });
+
+  it("open(initialRequest) sends the request immediately", async () => {
+    const stream = makeBidiStream<string, string>(["echo:init"]);
+    const callFn = vi.fn(() => stream);
+    const { result } = renderHook(() => useBidiStream(callFn));
+
+    await act(async () => result.current.open("init"));
+
+    expect(stream.sent).toContain("init");
+  });
 });

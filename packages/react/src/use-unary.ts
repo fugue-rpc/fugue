@@ -8,11 +8,6 @@ export type UnaryState<Res> =
   | { status: "success"; data: Res }
   | { status: "error"; error: GrpcStatusError | Error };
 
-export interface UseUnaryOptions {
-  /** If true, fire the call immediately on mount (and whenever `call` changes). */
-  immediate?: boolean;
-}
-
 export interface UseUnaryResult<Req, Res> {
   state: UnaryState<Res>;
   execute(req: Req): void;
@@ -20,13 +15,13 @@ export interface UseUnaryResult<Req, Res> {
 }
 
 /**
- * Manages a single unary RPC call.
+ * Manages a single unary RPC call. Call `execute(req)` to fire it; the hook
+ * transitions idle → loading → success | error.
  *
  * @param call - Factory that opens a unary stream given a request.
  */
 export function useUnary<Req, Res>(
   call: (req: Req) => UnaryCall<Res>,
-  options: UseUnaryOptions = {},
 ): UseUnaryResult<Req, Res> {
   const [state, setState] = useState<UnaryState<Res>>({ status: "idle" });
   const cancelRef = useRef<(() => void) | null>(null);
