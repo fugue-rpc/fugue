@@ -53,6 +53,10 @@ func New(ws *websocket.Conn, log *slog.Logger) *Conn {
 	if log == nil {
 		log = slog.Default()
 	}
+	// Raise the WebSocket read limit to match our MaxPayloadSize (4 MiB payload
+	// + 9-byte header). The coder/websocket default of 32 KiB would otherwise
+	// reject legitimate large messages before our own size check fires.
+	ws.SetReadLimit(int64(frame.MaxPayloadSize) + int64(frame.HeaderSize))
 	return &Conn{ws: ws, log: log}
 }
 

@@ -17,7 +17,6 @@ import (
 	"runtime/pprof"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -29,12 +28,13 @@ import (
 )
 
 var (
-	addr       = flag.String("addr", "ws://localhost:8080/wsgrpc/", "echo server WebSocket address")
-	numConns   = flag.Int("conns", 10, "number of WebSocket connections")
+	addr        = flag.String("addr", "ws://localhost:8080/wsgrpc/", "echo server WebSocket address")
+	numConns    = flag.Int("conns", 10, "number of WebSocket connections")
 	numStreams  = flag.Int("streams", 10, "concurrent streams per connection")
-	duration   = flag.Duration("duration", 30*time.Second, "test duration")
-	cpuProfile = flag.String("cpuprofile", "", "write CPU profile to file")
-	memProfile = flag.String("memprofile", "", "write heap profile to file")
+	duration    = flag.Duration("duration", 30*time.Second, "test duration")
+	payloadSize = flag.Int("payload", 0, "request payload size in bytes (0 = use default 'stress' message)")
+	cpuProfile  = flag.String("cpuprofile", "", "write CPU profile to file")
+	memProfile  = flag.String("memprofile", "", "write heap profile to file")
 )
 
 // workerResult holds per-goroutine stats (no mutex needed — one goroutine owns it).
@@ -73,8 +73,14 @@ func main() {
 	workerResults := make([]workerResult, *numConns**numStreams)
 	var wg sync.WaitGroup
 
-	// Shared request payload — proto-encoded Msg.
-	reqPayload, _ := proto.Marshal(&echov1.Msg{Value: "stress"})
+	// Build request payload — either a fixed-size byte string or the default.
+	var reqPayload []byte
+	if *payloadSize > 0 {
+		reqPayload, _ = proto.Marshal(&echov1.Msg{Value: string(make([]byte, *payloadSize))})
+		fmt.Printf("Payload size: %d bytes (proto-encoded: %d bytes)\n\n", *payloadSize, len(reqPayload))
+	} else {
+		reqPayload, _ = proto.Marshal(&echov1.Msg{Value: "stress"})
+	}
 
 	workerIdx := 0
 	for c := 0; c < *numConns; c++ {
@@ -149,7 +155,7 @@ func main() {
 
 type connState struct {
 	ws      *websocket.Conn
-	nextID  atomic.Uint32
+	nextID  uint32 // only incremented while holding writeMu
 	writeMu sync.Mutex
 	chMu    sync.RWMutex
 	chans   map[uint32]chan frame.Frame
@@ -160,6 +166,9 @@ func newConn(ctx context.Context, addr string) (*connState, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Match the server's read limit so large payloads aren't rejected by the
+	// WebSocket layer before the grpcws frame decoder can validate them.
+	ws.SetReadLimit(4*1024*1024 + 9) // MaxPayloadSize + HeaderSize
 	c := &connState{
 		ws:    ws,
 		chans: make(map[uint32]chan frame.Frame),
@@ -200,15 +209,25 @@ func (c *connState) readLoop(ctx context.Context) {
 	}
 }
 
-func (c *connState) allocStream() (uint32, <-chan frame.Frame) {
-	id := c.nextID.Add(1)
+// beginStream allocates a new stream ID, registers its receive channel, and
+// sends the BEGIN frame — all while holding writeMu. This guarantees that the
+// server always sees BEGIN frames in strictly ascending stream-ID order, which
+// is required by the protocol (§5.1). Any other write ordering would cause the
+// server to close the connection with code 1002.
+func (c *connState) beginStream(beginPayload []byte) (uint32, <-chan frame.Frame, error) {
 	ch := make(chan frame.Frame, 8)
+	c.writeMu.Lock()
+	c.nextID++
+	id := c.nextID
 	c.chMu.Lock()
 	if c.chans != nil {
 		c.chans[id] = ch
 	}
 	c.chMu.Unlock()
-	return id, ch
+	b, _ := frame.Encode(frame.Frame{Type: frame.TypeBEGIN, StreamID: id, Payload: beginPayload})
+	err := c.ws.Write(context.Background(), websocket.MessageBinary, b)
+	c.writeMu.Unlock()
+	return id, ch, err
 }
 
 func (c *connState) freeStream(id uint32) {
@@ -243,10 +262,10 @@ func runWorker(ctx context.Context, conn *connState, reqPayload []byte, res *wor
 		default:
 		}
 
-		id, ch := conn.allocStream()
+		// beginStream atomically allocates ID + sends BEGIN (keeps ID order).
+		id, ch, err := conn.beginStream(beginPayload)
 		start := time.Now()
-
-		if err := conn.writeFrame(frame.Frame{Type: frame.TypeBEGIN, StreamID: id, Payload: beginPayload}); err != nil {
+		if err != nil {
 			res.errors++
 			conn.freeStream(id)
 			return

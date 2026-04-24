@@ -1,0 +1,49 @@
+grpcws stress test results
+Platform: Windows 11, i7-11700F, Go 1.26
+Date: 2026-04-24
+Echo server: examples/echo-server (single process, no tuning)
+Stress tool: examples/stress
+
+── Throughput by concurrency (tiny payload ~7 bytes) ────────────────────────
+
+  conns × streams   total streams   throughput    mean lat   p50      p99
+  ──────────────── ─────────────── ────────────  ─────────  ────   ───────
+  1  × 1            1 (sequential)   8,022 RPC/s    123 µs    —        —
+  10 × 10           100             63,775 RPC/s   1.37 ms  992 µs  7.97 ms
+  50 × 20           1,000           69,589 RPC/s  13.60 ms  8.58 ms 92 ms
+
+Throughput ceiling ~65–70 k RPC/s on this machine. Primary bottleneck:
+  - writeMu lock contention (40% of CPU, per pprof)
+  - Windows CGO I/O overhead (25% of CPU; epoll on Linux would be ~3× cheaper)
+
+── Throughput by payload size (5 conns × 5 streams = 25 concurrent) ─────────
+
+  payload size   throughput    mean lat   p50      p95      p99
+  ────────────  ────────────  ─────────  ──────   ──────   ──────
+  ~7 B            ~64,000 RPC/s  1.3 ms   —        —        —
+  1 KiB           37,636 RPC/s   515 µs   510 µs   1.51 ms  2.36 ms
+  64 KiB           4,379 RPC/s  4.47 ms  3.89 ms   9.15 ms  18.2 ms
+  512 KiB            757 RPC/s  24.76 ms 19.35 ms  36.15 ms 320 ms
+
+Throughput scales roughly with 1/payload_size as expected for I/O-bound work.
+512 KiB p99 spike (320 ms) is OS TCP send-buffer pressure — expected on loopback.
+0 errors on all runs (end-of-duration context cancellations not counted).
+
+── Key findings ──────────────────────────────────────────────────────────────
+
+1. writeMu contention: with N streams per connection, N goroutines compete for
+   the write mutex. Each stream holds the lock for one ws.Write syscall. At
+   10+ streams/conn this is the dominant cost. Mitigation: fewer streams per
+   connection OR a write queue (single writer goroutine per connection).
+
+2. WebSocket read limit: coder/websocket defaults to 32 KiB. conn.go now calls
+   ws.SetReadLimit(MaxPayloadSize + HeaderSize) = 4 MiB + 9 bytes, matching
+   the protocol spec. Without this, any payload > 32 KiB was silently dropped.
+
+3. Windows vs Linux: CGO overhead for I/O syscalls accounts for 25% of CPU
+   on Windows. The same workload on Linux/epoll should be significantly faster.
+
+4. Protocol correctness under concurrency: concurrent goroutines sharing one
+   connection MUST send BEGIN frames in strictly ascending stream-ID order.
+   The stress tool's original atomic-increment + separate lock approach violated
+   this; the fix holds writeMu across both ID allocation and BEGIN write.
