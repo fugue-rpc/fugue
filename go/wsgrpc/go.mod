@@ -1,4 +1,4 @@
-module github.com/grpcws/wsgrpc
+module github.com/wsgrpc/wsgrpc
 
 go 1.26.1
 

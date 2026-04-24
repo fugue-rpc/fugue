@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/grpcws/wsgrpc/frame"
-	"github.com/grpcws/wsgrpc/internal/conn"
-	"github.com/grpcws/wsgrpc/internal/stream"
+	"github.com/wsgrpc/wsgrpc/frame"
+	"github.com/wsgrpc/wsgrpc/internal/conn"
+	"github.com/wsgrpc/wsgrpc/internal/stream"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/grpcws/wsgrpc/frame"
+	"github.com/wsgrpc/wsgrpc/frame"
 )
 
 // allTypes lists every defined frame type so we can verify round-trips for each.

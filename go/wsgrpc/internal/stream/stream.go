@@ -6,8 +6,8 @@ import (
 	"io"
 	"sync"
 
-	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
-	"github.com/grpcws/wsgrpc/frame"
+	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
+	"github.com/wsgrpc/wsgrpc/frame"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

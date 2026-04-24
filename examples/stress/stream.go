@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	echov1 "github.com/grpcws/wsgrpc/echo/v1"
-	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
-	"github.com/grpcws/wsgrpc/frame"
+	echov1 "github.com/wsgrpc/wsgrpc/echo/v1"
+	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
+	"github.com/wsgrpc/wsgrpc/frame"
 	"google.golang.org/protobuf/proto"
 )
 

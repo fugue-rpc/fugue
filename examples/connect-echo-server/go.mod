@@ -4,7 +4,7 @@ go 1.26.1
 
 require (
 	connectrpc.com/connect v1.18.1
-	github.com/grpcws/wsgrpc v0.0.0
+	github.com/wsgrpc/wsgrpc v0.0.0
 	golang.org/x/net v0.49.0
 )
 
@@ -16,4 +16,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/grpcws/wsgrpc => ../../go/wsgrpc
+replace github.com/wsgrpc/wsgrpc => ../../go/wsgrpc

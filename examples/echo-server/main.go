@@ -8,8 +8,8 @@ import (
 	_ "net/http/pprof" // registers /debug/pprof/ on the default mux
 	"strings"
 
-	echov1 "github.com/grpcws/wsgrpc/echo/v1"
-	"github.com/grpcws/wsgrpc"
+	echov1 "github.com/wsgrpc/wsgrpc/echo/v1"
+	"github.com/wsgrpc/wsgrpc"
 	"google.golang.org/grpc"
 )
 

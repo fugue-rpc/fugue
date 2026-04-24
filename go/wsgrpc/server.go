@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/coder/websocket"
-	"github.com/grpcws/wsgrpc/internal/conn"
-	"github.com/grpcws/wsgrpc/internal/stream"
+	"github.com/wsgrpc/wsgrpc/internal/conn"
+	"github.com/wsgrpc/wsgrpc/internal/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

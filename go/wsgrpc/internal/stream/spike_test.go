@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	framev1 "github.com/grpcws/wsgrpc/grpcws/frame/v1"
-	"github.com/grpcws/wsgrpc/internal/stream"
+	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
+	"github.com/wsgrpc/wsgrpc/internal/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

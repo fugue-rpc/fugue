@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	echov1 "github.com/grpcws/wsgrpc/echo/v1"
+	echov1 "github.com/wsgrpc/wsgrpc/echo/v1"
 	"golang.org/x/net/http2"
 	"google.golang.org/protobuf/proto"
 )
