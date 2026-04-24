@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>grpcws demo</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #e0e0e0; padding: 24px; }
+      h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
+      h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #aaa; }
+      .subtitle { font-size: 0.85rem; color: #666; margin-bottom: 32px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px; }
+      .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+      .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: #2a2a2a; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+      .badge.ok { background: #14432a; color: #4ade80; }
+      .badge.err { background: #431414; color: #f87171; }
+      .row { display: flex; gap: 8px; }
+      input { flex: 1; background: #111; border: 1px solid #333; color: #e0e0e0; padding: 7px 10px; border-radius: 6px; font-size: 0.9rem; outline: none; }
+      input:focus { border-color: #555; }
+      button { background: #2563eb; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
+      button:hover { background: #1d4ed8; }
+      button:disabled { background: #1e3a5f; color: #4a6fa5; cursor: not-allowed; }
+      button.danger { background: #991b1b; }
+      button.danger:hover { background: #7f1d1d; }
+      .log { background: #111; border: 1px solid #2a2a2a; border-radius: 6px; padding: 10px 12px; min-height: 80px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; }
+      .log .entry { color: #9ca3af; }
+      .log .entry.sent { color: #60a5fa; }
+      .log .entry.recv { color: #4ade80; }
+      .log .entry.err { color: #f87171; }
+      .status-bar { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #666; }
+      .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; }
+      .dot.open { background: #4ade80; }
+      .dot.closed { background: #f87171; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
