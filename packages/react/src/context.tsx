@@ -1,14 +1,14 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { WsGrpcTransport } from "@grpcws/transport";
+import { FugueTransport } from "@fugue-rpc/transport";
 
-const TransportContext = createContext<WsGrpcTransport | null>(null);
+const TransportContext = createContext<FugueTransport | null>(null);
 
-export interface WsGrpcProviderProps {
-  transport: WsGrpcTransport;
+export interface FugueProviderProps {
+  transport: FugueTransport;
   children: ReactNode;
 }
 
-export function WsGrpcProvider({ transport, children }: WsGrpcProviderProps) {
+export function FugueProvider({ transport, children }: FugueProviderProps) {
   return (
     <TransportContext.Provider value={transport}>
       {children}
@@ -16,8 +16,8 @@ export function WsGrpcProvider({ transport, children }: WsGrpcProviderProps) {
   );
 }
 
-export function useTransport(): WsGrpcTransport {
+export function useTransport(): FugueTransport {
   const t = useContext(TransportContext);
-  if (!t) throw new Error("useTransport must be used inside <WsGrpcProvider>");
+  if (!t) throw new Error("useTransport must be used inside <FugueProvider>");
   return t;
 }

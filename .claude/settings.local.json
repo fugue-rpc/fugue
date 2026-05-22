@@ -5,7 +5,15 @@
       "Bash(go version *)",
       "Bash(pnpm --version)",
       "Bash(buf --version)",
-      "Bash(npm --version)"
+      "Bash(npm --version)",
+      "Bash(git init *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(claude doctor *)",
+      "Bash(go run *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm test:e2e)"
     ]
   }
 }

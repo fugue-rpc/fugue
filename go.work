@@ -4,5 +4,5 @@ use (
 	./examples/connect-echo-server
 	./examples/echo-server
 	./examples/stress
-	./go/wsgrpc
+	./wsgrpc-go
 )

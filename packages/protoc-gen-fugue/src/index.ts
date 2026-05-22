@@ -74,14 +74,14 @@ function methodBody(method: DescMethod, path: string): string[] {
 }
 
 const plugin = createEcmaScriptPlugin({
-  name: "protoc-gen-wsgrpc",
+  name: "protoc-gen-fugue",
   version: "v0.1.0",
   generateTs(schema: Schema) {
     for (const file of schema.files) {
       if (file.services.length === 0) continue;
 
       const f = schema.generateFile(
-        file.name.replace(/\.proto$/, "") + "_wsgrpc.ts",
+        file.name.replace(/\.proto$/, "") + "_fugue.ts",
       );
 
       f.preamble(file);
@@ -102,8 +102,8 @@ const plugin = createEcmaScriptPlugin({
       f.print(`  ClientStream,`);
       f.print(`  ServerStream,`);
       f.print(`  UnaryCall,`);
-      f.print(`  WsGrpcTransport,`);
-      f.print(`} from "@grpcws/transport";`);
+      f.print(`  FugueTransport,`);
+      f.print(`} from "@fugue-rpc/transport";`);
 
       // pb import: interleave type imports for message types and value imports for schemas.
       const pbParts: string[] = [];
@@ -119,7 +119,7 @@ const plugin = createEcmaScriptPlugin({
 
       for (const svc of file.services) {
         f.print(`export class ${svc.name}Client {`);
-        f.print(`  constructor(private readonly transport: WsGrpcTransport) {}`);
+        f.print(`  constructor(private readonly transport: FugueTransport) {}`);
         f.print();
 
         for (const method of svc.methods) {

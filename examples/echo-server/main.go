@@ -8,13 +8,13 @@ import (
 	_ "net/http/pprof" // registers /debug/pprof/ on the default mux
 	"strings"
 
-	echov1 "github.com/wsgrpc/wsgrpc/echo/v1"
-	"github.com/wsgrpc/wsgrpc"
+	echov1 "github.com/fugue-rpc/fugue/echo/v1"
+	"github.com/fugue-rpc/fugue"
 	"google.golang.org/grpc"
 )
 
 func main() {
-	srv := wsgrpc.NewServer(wsgrpc.WithLogger(slog.Default()))
+	srv := fugue.NewServer(fugue.WithLogger(slog.Default()))
 	echov1.RegisterEchoServer(srv, &echoImpl{})
 
 	// pprof on a dedicated port so it never contends with gRPC traffic.
@@ -27,9 +27,9 @@ func main() {
 
 	// gRPC-over-WebSocket on its own mux so pprof routes stay separate.
 	mux := http.NewServeMux()
-	mux.Handle("/wsgrpc/", srv)
+	mux.Handle("/fugue/", srv)
 
-	slog.Info("echo server listening", "addr", ":8080", "path", "/wsgrpc/")
+	slog.Info("echo server listening", "addr", ":8080", "path", "/fugue/")
 	if err := http.ListenAndServe(":8080", mux); err != nil {
 		slog.Error("server exited", "err", err)
 	}

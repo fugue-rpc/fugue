@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { UnaryCall } from "@grpcws/transport";
-import { GrpcStatusError } from "@grpcws/transport";
+import type { UnaryCall } from "@fugue-rpc/transport";
+import { GrpcStatusError } from "@fugue-rpc/transport";
 
 export type UnaryState<Res> =
   | { status: "idle" }

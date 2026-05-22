@@ -88,7 +88,7 @@ describe("iterator.return() cancels the stream", () => {
     expect(retResult.done).toBe(true);
 
     // Stream is now closed; send() must throw.
-    expect(() => stream._sendMsg(new Uint8Array([1]))).toThrow("wsgrpc: stream closed");
+    expect(() => stream._sendMsg(new Uint8Array([1]))).toThrow("fugue: stream closed");
   });
 });
 
@@ -114,7 +114,7 @@ describe("server-initiated RESET before consumer reads", () => {
     stream._reset();
 
     // send() after RESET — must throw
-    expect(() => stream._sendMsg(new Uint8Array([2]))).toThrow("wsgrpc: stream closed");
+    expect(() => stream._sendMsg(new Uint8Array([2]))).toThrow("fugue: stream closed");
   });
 });
 
@@ -124,7 +124,7 @@ describe("send() after cancel()", () => {
   it("throws synchronously", () => {
     const { stream } = makeStream();
     stream.cancel();
-    expect(() => stream._sendMsg(new Uint8Array([1]))).toThrow("wsgrpc: stream closed");
+    expect(() => stream._sendMsg(new Uint8Array([1]))).toThrow("fugue: stream closed");
   });
 
   it("cancel() sends RESET exactly once (idempotent)", () => {

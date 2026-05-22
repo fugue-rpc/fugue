@@ -16,7 +16,7 @@ const ALL_TYPES = [
 ] as const;
 
 describe("round-trip", () => {
-  const payload = new TextEncoder().encode("hello grpcws");
+  const payload = new TextEncoder().encode("hello fugue");
 
   for (const [name, type] of ALL_TYPES) {
     it(name, () => {

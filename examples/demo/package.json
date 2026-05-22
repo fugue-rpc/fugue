@@ -1,5 +1,5 @@
 {
-  "name": "grpcws-demo",
+  "name": "fugue-demo",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.6.0",
-    "@grpcws/react": "workspace:*",
-    "@grpcws/transport": "workspace:*",
+    "@fugue-rpc/react": "workspace:*",
+    "@fugue-rpc/transport": "workspace:*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

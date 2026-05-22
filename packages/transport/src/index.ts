@@ -1,5 +1,5 @@
 export type { ConnectionState, TransportOptions } from "./transport.js";
-export { WsGrpcTransport } from "./transport.js";
+export { FugueTransport } from "./transport.js";
 
 export type {
   UnaryCall,

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ServerStream } from "@grpcws/transport";
-import { GrpcStatusError } from "@grpcws/transport";
+import type { ServerStream } from "@fugue-rpc/transport";
+import { GrpcStatusError } from "@fugue-rpc/transport";
 
 export type ServerStreamState<Res> =
   | { status: "idle" }

@@ -1,9 +1,9 @@
 // End-to-end tests: TypeScript transport ↔ real Go echo server.
 // Run with: pnpm test:e2e  (starts echo-server automatically via globalSetup)
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WsGrpcTransport } from "./index.js";
+import { FugueTransport } from "./index.js";
 
-const SERVER = "ws://localhost:8080/wsgrpc/";
+const SERVER = "ws://localhost:8080/fugue/";
 
 // Manual codec for echo.v1.Msg { string value = 1 }.
 // Field 1, wire type 2 (length-delimited): tag byte 0x0a + varint length + UTF-8.
@@ -20,11 +20,11 @@ function decodeMsg(bytes: Uint8Array): string {
   return new TextDecoder().decode(bytes.slice(2));
 }
 
-describe("E2E — grpcws echo server", () => {
-  let transport: WsGrpcTransport;
+describe("E2E — fugue echo server", () => {
+  let transport: FugueTransport;
 
   beforeEach(() => {
-    transport = new WsGrpcTransport(SERVER);
+    transport = new FugueTransport(SERVER);
   });
 
   afterEach(() => {

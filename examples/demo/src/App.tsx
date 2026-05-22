@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { create } from "@bufbuild/protobuf";
-import { WsGrpcTransport } from "@grpcws/transport";
-import { WsGrpcProvider } from "@grpcws/react";
-import { useUnary } from "@grpcws/react";
-import { useServerStream } from "@grpcws/react";
-import { useBidiStream } from "@grpcws/react";
+import { FugueTransport } from "@fugue-rpc/transport";
+import { FugueProvider } from "@fugue-rpc/react";
+import { useUnary } from "@fugue-rpc/react";
+import { useServerStream } from "@fugue-rpc/react";
+import { useBidiStream } from "@fugue-rpc/react";
 import { MsgSchema } from "@gen/echo/v1/echo_pb.js";
-import { EchoClient } from "@gen/echo/v1/echo_wsgrpc.js";
+import { EchoClient } from "@gen/echo/v1/echo_fugue.js";
 
-// Connect via Vite proxy (/wsgrpc → ws://localhost:8080/wsgrpc).
-const transport = new WsGrpcTransport("/wsgrpc/");
+// Connect via Vite proxy (/fugue → ws://localhost:8080/fugue).
+const transport = new FugueTransport("/fugue/");
 
 function msg(value: string) {
   return create(MsgSchema, { value });
@@ -239,8 +239,8 @@ export default function App() {
   const client = useMemo(() => new EchoClient(transport), []);
 
   return (
-    <WsGrpcProvider transport={transport}>
-      <h1>grpcws demo</h1>
+    <FugueProvider transport={transport}>
+      <h1>fugue demo</h1>
       <p className="subtitle">
         All four gRPC RPC kinds over one WebSocket.
         Start the echo server: <code>cd examples/echo-server &amp;&amp; go run .</code>
@@ -253,6 +253,6 @@ export default function App() {
         <ClientStreamPanel client={client} />
         <BidiPanel client={client} />
       </div>
-    </WsGrpcProvider>
+    </FugueProvider>
   );
 }

@@ -8,8 +8,8 @@ export default defineConfig({
     // Point workspace packages at their TypeScript source so no build step is
     // needed before running the demo.
     alias: {
-      "@grpcws/transport": resolve(__dirname, "../../packages/transport/src/index.ts"),
-      "@grpcws/react": resolve(__dirname, "../../packages/react/src/index.ts"),
+      "@fugue-rpc/transport": resolve(__dirname, "../../packages/transport/src/index.ts"),
+      "@fugue-rpc/react": resolve(__dirname, "../../packages/react/src/index.ts"),
       "@gen": resolve(__dirname, "../../gen/ts"),
     },
   },
@@ -18,7 +18,7 @@ export default defineConfig({
     // Proxy WebSocket traffic to the echo server so the browser never crosses
     // origins (avoids needing WithOrigins("*") in production-like testing).
     proxy: {
-      "/wsgrpc": {
+      "/fugue": {
         target: "ws://localhost:8080",
         ws: true,
       },

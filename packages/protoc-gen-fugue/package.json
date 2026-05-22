@@ -1,0 +1,33 @@
+{
+  "name": "@fugue-rpc/protoc-gen-fugue",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "protoc plugin: generates fugue TypeScript clients from .proto files",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fugue-rpc/fugue.git",
+    "directory": "packages/protoc-gen-fugue"
+  },
+  "keywords": ["grpc", "websocket", "protobuf", "protoc", "buf", "rpc", "browser", "codegen"],
+  "files": [
+    "dist"
+  ],
+  "bin": {
+    "protoc-gen-fugue": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.6.0",
+    "@bufbuild/protoplugin": "^2.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

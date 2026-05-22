@@ -1,4 +1,4 @@
-// Binary framing codec for the grpcws wire protocol.
+// Binary framing codec for the fugue wire protocol.
 // See docs/wire-format.md for the full specification.
 
 export const FrameType = {

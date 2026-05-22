@@ -2,13 +2,13 @@
 //
 // Modes:
 //
-//	grpcws (default) — grpcws WebSocket unary
-//	  stress -addr ws://localhost:8080/wsgrpc/ -conns 10 -streams 10 -duration 30s
+//	fugue (default) — fugue WebSocket unary
+//	  stress -addr ws://localhost:8080/fugue/ -conns 10 -streams 10 -duration 30s
 //
 //	connect-h1 / connect-h2 — Connect protocol unary over HTTP/1.1 or HTTP/2 (h2c)
 //	  stress -mode connect-h1 -connect-addr http://localhost:8090/echo.v1.Echo/Echo -conns 10 -streams 10
 //
-//	stream-server / stream-client / stream-bidi — grpcws streaming modes
+//	stream-server / stream-client / stream-bidi — fugue streaming modes
 //	  stress -mode stream-server -msgs-per-stream 100 -conns 10 -streams 10
 //
 //	connect-stream — Connect-ES server-streaming (comparison for stream-server only)
@@ -34,21 +34,21 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	echov1 "github.com/wsgrpc/wsgrpc/echo/v1"
-	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
-	"github.com/wsgrpc/wsgrpc/frame"
+	echov1 "github.com/fugue-rpc/fugue/echo/v1"
+	framev1 "github.com/fugue-rpc/fugue/grpcws/frame/v1"
+	"github.com/fugue-rpc/fugue/frame"
 	"google.golang.org/protobuf/proto"
 )
 
 var (
-	addr              = flag.String("addr", "ws://localhost:8080/wsgrpc/", "grpcws WebSocket address")
+	addr              = flag.String("addr", "ws://localhost:8080/fugue/", "fugue WebSocket address")
 	numConns          = flag.Int("conns", 10, "number of connections (WebSocket conns or HTTP client instances)")
 	numStreams        = flag.Int("streams", 10, "concurrent streams/goroutines per connection")
 	duration          = flag.Duration("duration", 30*time.Second, "test duration")
 	payloadSize       = flag.Int("payload", 0, "request payload size in bytes (0 = use default 'stress' message)")
 	cpuProfile        = flag.String("cpuprofile", "", "write CPU profile to file")
 	memProfile        = flag.String("memprofile", "", "write heap profile to file")
-	mode              = flag.String("mode", "grpcws", "protocol mode: grpcws | connect-h1 | connect-h2 | stream-server | stream-client | stream-bidi | connect-stream")
+	mode              = flag.String("mode", "fugue", "protocol mode: fugue | connect-h1 | connect-h2 | stream-server | stream-client | stream-bidi | connect-stream")
 	connectAddr       = flag.String("connect-addr", "http://localhost:8090/echo.v1.Echo/Echo", "Connect unary echo server URL")
 	connectStreamAddr = flag.String("connect-stream-addr", "http://localhost:8090/echo.v1.Echo/EchoStreamN", "Connect server-streaming echo server URL")
 	msgsPerStream     = flag.Int("msgs-per-stream", 100, "messages per stream for streaming modes")
@@ -85,6 +85,12 @@ func main() {
 	defer runCancel()
 
 	switch *mode {
+	case "fugue", "grpcws": // "grpcws" kept as backward-compat alias
+		fmt.Printf("Mode:        fugue\n")
+		fmt.Printf("Connecting to %s\n", *addr)
+		fmt.Printf("Connections: %d  Streams/conn: %d  Duration: %s\n\n",
+			*numConns, *numStreams, *duration)
+		runGrpcwsMode(runCtx, ctx)
 	case "connect-h1", "connect-h2":
 		fmt.Printf("Mode:        %s\n", *mode)
 		fmt.Printf("Endpoint:    %s\n", *connectAddr)
@@ -104,11 +110,8 @@ func main() {
 			*numConns**numStreams, *numConns, *numStreams, *msgsPerStream, *duration)
 		runConnectStreamMode(runCtx)
 	default:
-		fmt.Printf("Mode:        grpcws\n")
-		fmt.Printf("Connecting to %s\n", *addr)
-		fmt.Printf("Connections: %d  Streams/conn: %d  Duration: %s\n\n",
-			*numConns, *numStreams, *duration)
-		runGrpcwsMode(runCtx, ctx)
+		fmt.Fprintf(os.Stderr, "unknown mode %q\n", *mode)
+		os.Exit(1)
 	}
 
 	if *memProfile != "" {
@@ -124,7 +127,7 @@ func main() {
 	}
 }
 
-// ── grpcws mode ───────────────────────────────────────────────────────────────
+// ── fugue mode ────────────────────────────────────────────────────────────────
 
 func runGrpcwsMode(runCtx, dialCtx context.Context) {
 	workerResults := make([]workerResult, *numConns**numStreams)

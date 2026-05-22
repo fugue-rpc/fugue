@@ -18,7 +18,7 @@ export type TransportOptions = {
   _wsFactory?: (url: string) => WebSocket;
 };
 
-export class WsGrpcTransport {
+export class FugueTransport {
   private readonly _ws: WebSocket;
   private readonly _streams = new Map<number, RawStream>();
   private _nextStreamId = 1;
@@ -47,7 +47,7 @@ export class WsGrpcTransport {
           this._handleFrame(frame);
         }
       } catch (err) {
-        console.warn("wsgrpc: malformed frame from server, closing transport", err);
+        console.warn("fugue: malformed frame from server, closing transport", err);
         this._ws.close();
       }
     };
@@ -118,7 +118,7 @@ export class WsGrpcTransport {
     payload: Uint8Array,
   ): void {
     if (this._debug) {
-      console.debug("wsgrpc ▲", { type, streamId, payloadBytes: payload.length });
+      console.debug("fugue ▲", { type, streamId, payloadBytes: payload.length });
     }
     const encoded = encodeFrame({
       type: type as (typeof FrameType)[keyof typeof FrameType],
@@ -134,7 +134,7 @@ export class WsGrpcTransport {
 
   private _handleFrame({ type, streamId, payload }: { type: number; streamId: number; payload: Uint8Array }): void {
     if (this._debug) {
-      console.debug("wsgrpc ▼", { type, streamId, payloadBytes: payload.length });
+      console.debug("fugue ▼", { type, streamId, payloadBytes: payload.length });
     }
 
     switch (type) {

@@ -1,11 +1,11 @@
 package main
 
-// Streaming benchmark workers for all four grpcws RPC kinds plus the
+// Streaming benchmark workers for all four fugue RPC kinds plus the
 // Connect-ES server-streaming comparison mode.
 //
 // Connect-ES cannot do client-streaming or bidi-streaming from a browser
 // (the Fetch API buffers the entire request body before sending). That
-// structural limitation is exactly why grpcws exists; the connect-stream mode
+// structural limitation is exactly why fugue exists; the connect-stream mode
 // demonstrates the server-streaming comparison where both protocols compete.
 
 import (
@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	echov1 "github.com/wsgrpc/wsgrpc/echo/v1"
-	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
-	"github.com/wsgrpc/wsgrpc/frame"
+	echov1 "github.com/fugue-rpc/fugue/echo/v1"
+	framev1 "github.com/fugue-rpc/fugue/fugue/frame/v1"
+	"github.com/fugue-rpc/fugue/frame"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -34,10 +34,10 @@ type streamResult struct {
 	allTTFM        []int64
 }
 
-// ── grpcws server-streaming ───────────────────────────────────────────────────
+// ── fugue server-streaming ───────────────────────────────────────────────────
 
 func runStreamServerMode(runCtx, dialCtx context.Context) {
-	fmt.Printf("Mode:        stream-server (grpcws)\n")
+	fmt.Printf("Mode:        stream-server (fugue)\n")
 	fmt.Printf("Connecting to %s\n", *addr)
 	fmt.Printf("Connections: %d  Streams/conn: %d  Msgs/stream: %d  Duration: %s\n\n",
 		*numConns, *numStreams, *msgsPerStream, *duration)
@@ -137,10 +137,10 @@ func drainServerStream(ctx context.Context, ch <-chan frame.Frame, n int, start 
 	}
 }
 
-// ── grpcws client-streaming ───────────────────────────────────────────────────
+// ── fugue client-streaming ───────────────────────────────────────────────────
 
 func runStreamClientMode(runCtx, dialCtx context.Context) {
-	fmt.Printf("Mode:        stream-client (grpcws)\n")
+	fmt.Printf("Mode:        stream-client (fugue)\n")
 	fmt.Printf("Connecting to %s\n", *addr)
 	fmt.Printf("Connections: %d  Streams/conn: %d  Msgs/stream: %d  Duration: %s\n\n",
 		*numConns, *numStreams, *msgsPerStream, *duration)
@@ -192,10 +192,10 @@ func runStreamClientWorker(ctx context.Context, conn *connState, beginPayload, m
 	}
 }
 
-// ── grpcws bidi-streaming ─────────────────────────────────────────────────────
+// ── fugue bidi-streaming ─────────────────────────────────────────────────────
 
 func runStreamBidiMode(runCtx, dialCtx context.Context) {
-	fmt.Printf("Mode:        stream-bidi (grpcws)\n")
+	fmt.Printf("Mode:        stream-bidi (fugue)\n")
 	fmt.Printf("Connecting to %s\n", *addr)
 	fmt.Printf("Connections: %d  Streams/conn: %d  Msgs/stream: %d  Duration: %s\n\n",
 		*numConns, *numStreams, *msgsPerStream, *duration)

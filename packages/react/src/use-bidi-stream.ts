@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { BidiStream } from "@grpcws/transport";
-import { GrpcStatusError } from "@grpcws/transport";
+import type { BidiStream } from "@fugue-rpc/transport";
+import { GrpcStatusError } from "@fugue-rpc/transport";
 
 export type BidiStreamState<Res> =
   | { status: "idle" }

@@ -59,7 +59,7 @@ export type StreamState =
 
 /**
  * Manages one logical gRPC stream multiplexed over the WebSocket.
- * Created by WsGrpcTransport.openStream(). Used by generated clients via the
+ * Created by FugueTransport.openStream(). Used by generated clients via the
  * unary/serverStream/clientStream/bidiStream factory methods.
  */
 export class RawStream {
@@ -82,7 +82,7 @@ export class RawStream {
   /** Send a MSG frame. Throws synchronously if the stream can no longer send. */
   _sendMsg(payload: Uint8Array): void {
     if (this._state === "half-closed-local" || this._state === "closed") {
-      throw new Error("wsgrpc: stream closed");
+      throw new Error("fugue: stream closed");
     }
     this._write(FrameType.MSG, this.streamId, payload);
   }
@@ -283,7 +283,7 @@ class UnaryCallImpl<Res> implements UnaryCall<Res> {
     const iter = stream[Symbol.asyncIterator]();
     this._promise = iter.next().then((result) => {
       if (result.done) {
-        throw new Error("wsgrpc: no response message received");
+        throw new Error("fugue: no response message received");
       }
       return decode(result.value);
     });
@@ -368,7 +368,7 @@ class ClientStreamImpl<Req, Res> implements ClientStream<Req, Res> {
     const iter = this._stream[Symbol.asyncIterator]();
     return iter.next().then((result) => {
       if (result.done) {
-        throw new Error("wsgrpc: no response message received");
+        throw new Error("fugue: no response message received");
       }
       return this._decode(result.value);
     });

@@ -2,12 +2,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import React from "react";
-import { WsGrpcProvider, useTransport } from "./context.js";
+import { FugueProvider, useTransport } from "./context.js";
 import { useUnary } from "./use-unary.js";
 import { useServerStream } from "./use-server-stream.js";
 import { useBidiStream } from "./use-bidi-stream.js";
-import type { BidiStream, ServerStream, UnaryCall } from "@grpcws/transport";
-import { GrpcStatusError } from "@grpcws/transport";
+import type { BidiStream, ServerStream, UnaryCall } from "@fugue-rpc/transport";
+import { GrpcStatusError } from "@fugue-rpc/transport";
 
 // ── Minimal fake transport / stream helpers ───────────────────────────────────
 
@@ -63,18 +63,18 @@ function makeBidiStream<Req, Res>(
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────
-describe("WsGrpcProvider / useTransport", () => {
+describe("FugueProvider / useTransport", () => {
   it("throws when used outside provider", () => {
     expect(() =>
       renderHook(() => useTransport()),
-    ).toThrow("useTransport must be used inside <WsGrpcProvider>");
+    ).toThrow("useTransport must be used inside <FugueProvider>");
   });
 
   it("provides the transport via context", () => {
     const t = fakeTransport();
     const { result } = renderHook(() => useTransport(), {
       wrapper: ({ children }) => (
-        <WsGrpcProvider transport={t as never}>{children}</WsGrpcProvider>
+        <FugueProvider transport={t as never}>{children}</FugueProvider>
       ),
     });
     expect(result.current).toBe(t);

@@ -5,7 +5,7 @@ import {
   BeginPayloadSchema,
   EndPayloadSchema,
 } from "./gen/frame_pb.js";
-import { GrpcStatusError, WsGrpcTransport } from "./index.js";
+import { GrpcStatusError, FugueTransport } from "./index.js";
 
 // ── Fake WebSocket ────────────────────────────────────────────────────────────
 // Mimics the browser WebSocket API without any real network I/O.
@@ -54,9 +54,9 @@ class FakeWebSocket {
   }
 }
 
-function makeTransport(): { transport: WsGrpcTransport; ws: FakeWebSocket } {
+function makeTransport(): { transport: FugueTransport; ws: FakeWebSocket } {
   const ws = new FakeWebSocket();
-  const transport = new WsGrpcTransport("ws://fake", {
+  const transport = new FugueTransport("ws://fake", {
     _wsFactory: () => ws as unknown as WebSocket,
   });
   ws.open(); // simulate immediate open
@@ -91,7 +91,7 @@ function serverHeader(streamId: number): Uint8Array {
 }
 
 // ── Transport state ───────────────────────────────────────────────────────────
-describe("WsGrpcTransport state", () => {
+describe("FugueTransport state", () => {
   it("transitions to open when WebSocket opens", () => {
     const { transport } = makeTransport();
     expect(transport.state).toBe("open");

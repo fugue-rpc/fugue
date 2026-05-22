@@ -1,20 +1,20 @@
-# grpcws Wire Format Specification — v0.1
+# fugue Wire Format Specification — v0.1
 
-This document is the authoritative specification for the grpcws binary framing protocol. An independent implementer should be able to build a compatible client from this document alone without reading any library source code.
+This document is the authoritative specification for the fugue binary framing protocol. An independent implementer should be able to build a compatible client from this document alone without reading any library source code.
 
 ---
 
 ## 1. Transport
 
-grpcws runs over a single, long-lived WebSocket connection (`ws://` or `wss://`). All messages are **binary WebSocket frames** (`opcode 0x2`). Text frames are a protocol error.
+fugue runs over a single, long-lived WebSocket connection (`ws://` or `wss://`). All messages are **binary WebSocket frames** (`opcode 0x2`). Text frames are a protocol error.
 
-The client opens the WebSocket to a path of the server's choosing (conventionally `/wsgrpc/`). Multiple gRPC streams are multiplexed over the single connection using stream IDs assigned by the client.
+The client opens the WebSocket to a path of the server's choosing (conventionally `/fugue/`). Multiple gRPC streams are multiplexed over the single connection using stream IDs assigned by the client.
 
 ---
 
 ## 2. Frame Layout
 
-Every message is a **grpcws frame** consisting of a fixed 9-byte header followed by a variable-length payload.
+Every message is a **fugue frame** consisting of a fixed 9-byte header followed by a variable-length payload.
 
 ```
  Byte:  0        1        2        3        4        5        6        7        8
@@ -256,7 +256,7 @@ syntax = "proto3";
 
 package grpcws.frame.v1;
 
-option go_package = "github.com/grpcws/wsgrpc/frame/v1;framev1";
+option go_package = "github.com/fugue-rpc/fugue/frame/v1;framev1";
 
 // Payload for a BEGIN frame. Sent by the client to open a stream.
 message BeginPayload {
@@ -315,7 +315,7 @@ The server enforces origin checking at upgrade time using the `Origin` request h
 `WithOrigins("*")` is **development-only**. When a logger is configured via `WithLogger`, the server logs a warning at startup:
 
 ```
-wsgrpc: WithOrigins("*") — all origins permitted; do not use in production
+fugue: WithOrigins("*") — all origins permitted; do not use in production
 ```
 
 The absent-Origin rule (non-browser clients pass unconditionally) exists because the `Origin` header is a browser security mechanism. Non-browser clients — Go test programs, CLI tools, native apps — do not send it and should not be blocked.
@@ -366,8 +366,8 @@ Full list: https://grpc.github.io/grpc/core/md_doc_statuscodes.html
 
 ## 10. Version and Compatibility
 
-This document describes **grpcws wire format v0.1**.
+This document describes **fugue wire format v0.1**.
 
-- The frame header has no version field. Versioning is handled at the WebSocket path level (e.g. `/wsgrpc/v1/`).
+- The frame header has no version field. Versioning is handled at the WebSocket path level (e.g. `/fugue/v1/`).
 - Frame type `0x05` and all values above are reserved. A v0.1 implementation MUST reject them as protocol errors so future versions can be detected cleanly.
 - The proto field numbers in `BeginPayload` and `EndPayload` are stable. Future versions may add fields; unknown fields MUST be ignored per proto3 semantics.

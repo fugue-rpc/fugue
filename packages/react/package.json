@@ -1,9 +1,15 @@
 {
-  "name": "@grpcws/react",
+  "name": "@fugue-rpc/react",
   "version": "0.1.0",
   "type": "module",
-  "description": "React hooks for grpcws — useUnary, useServerStream, useBidiStream",
+  "description": "React hooks for fugue — useUnary, useServerStream, useBidiStream",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fugue-rpc/fugue.git",
+    "directory": "packages/react"
+  },
+  "keywords": ["grpc", "websocket", "protobuf", "rpc", "browser", "react", "hooks", "streaming"],
   "files": [
     "dist",
     "!dist/**/*.test.*"
@@ -24,7 +30,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@grpcws/transport": "workspace:*"
+    "@fugue-rpc/transport": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18.0.0"

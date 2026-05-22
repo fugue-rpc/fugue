@@ -1,15 +1,15 @@
 {
-  "name": "@fugue-rpc/transport",
+  "name": "@fugue-rpc/node-server",
   "version": "0.1.0",
   "type": "module",
-  "description": "gRPC-over-WebSocket client transport for browsers and Node.js",
+  "description": "Node.js gRPC-over-WebSocket server — all four RPC kinds from a browser client",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/fugue-rpc/fugue.git",
-    "directory": "packages/transport"
+    "directory": "packages/node-server"
   },
-  "keywords": ["grpc", "websocket", "protobuf", "rpc", "browser", "streaming"],
+  "keywords": ["grpc", "websocket", "node", "rpc", "browser", "streaming", "server"],
   "files": [
     "dist",
     "!dist/**/*.test.*"
@@ -23,17 +23,23 @@
   "publishConfig": {
     "access": "public"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && tsc -p tsconfig.build.json",
+    "prepublishOnly": "pnpm build",
     "test": "vitest run",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:e2e:node": "vitest run --config vitest.e2e.node.config.ts"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.6.0"
+    "@bufbuild/protobuf": "^2.6.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.14",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
   }

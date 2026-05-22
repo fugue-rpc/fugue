@@ -6,7 +6,7 @@
     "strict": true,
     "noEmit": true,
     "paths": {
-      "@grpcws/transport": ["../../packages/transport/src/index.ts"]
+      "@fugue-rpc/transport": ["../../packages/transport/src/index.ts"]
     }
   },
   "include": ["./**/*.ts"]
