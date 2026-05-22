@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 
 	"github.com/coder/websocket"
-	framev1 "github.com/fugue-rpc/fugue/frame/v1"
-	"github.com/fugue-rpc/fugue/frame"
-	"github.com/fugue-rpc/fugue/internal/stream"
+	framev1 "github.com/fugue-rpc/fugue-go/frame/v1"
+	"github.com/fugue-rpc/fugue-go/frame"
+	"github.com/fugue-rpc/fugue-go/internal/stream"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"

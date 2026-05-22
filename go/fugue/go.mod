@@ -1,4 +1,4 @@
-module github.com/fugue-rpc/fugue
+module github.com/fugue-rpc/fugue-go
 
 go 1.26.1
 

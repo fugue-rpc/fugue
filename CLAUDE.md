@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 fugue enables all four gRPC RPC kinds (unary, server-streaming, client-streaming, bidirectional) from the browser over a single long-lived WebSocket connection. gRPC-Web and Connect-ES cannot do client-streaming or bidi from browsers because the Fetch API buffers request bodies; this library closes that gap.
 
 Components:
-- `fugue-go/` — Go server library, published as `github.com/fugue-rpc/fugue`
+- `fugue-go/` — Go server library, published as `github.com/fugue-rpc/fugue-go`
 - `packages/transport/` — TypeScript browser client (`@fugue-rpc/transport`)
 - `packages/react/` — React hooks (`@fugue-rpc/react`)
 - `packages/protoc-gen-fugue/` — protoc plugin that generates typed TypeScript clients
@@ -58,7 +58,7 @@ Note: The `protoc-gen-fugue` plugin generates `*_fugue.ts` files.
 
 ### Two Go modules
 
-`go/fugue/` and `fugue-go/` both declare `module github.com/fugue-rpc/fugue`. `fugue-go/` is the canonical, publish-ready copy (has its own git repo and README). `go/fugue/` is the dev working copy and also contains `spike/` (experimental proto bindings not meant for publish).
+`go/fugue/` and `fugue-go/` both declare `module github.com/fugue-rpc/fugue-go`. `fugue-go/` is the canonical, publish-ready copy (has its own git repo and README). `go/fugue/` is the dev working copy and also contains `spike/` (experimental proto bindings not meant for publish).
 
 `go.work` and all example `go.mod` replace directives point at `fugue-go/` — that is the copy all tests run against. If you edit Go source, edit in `fugue-go/`; `go/fugue/` drifts unless manually synced.
 

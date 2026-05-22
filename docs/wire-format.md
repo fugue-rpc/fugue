@@ -256,7 +256,7 @@ syntax = "proto3";
 
 package grpcws.frame.v1;
 
-option go_package = "github.com/fugue-rpc/fugue/frame/v1;framev1";
+option go_package = "github.com/fugue-rpc/fugue-go/frame/v1;framev1";
 
 // Payload for a BEGIN frame. Sent by the client to open a stream.
 message BeginPayload {

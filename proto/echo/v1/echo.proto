@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package echo.v1;
 
-option go_package = "github.com/fugue-rpc/fugue/echo/v1;echov1";
+option go_package = "github.com/fugue-rpc/fugue-go/echo/v1;echov1";
 
 service Echo {
   // Unary: send one message, receive one message.

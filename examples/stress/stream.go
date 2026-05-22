@@ -20,9 +20,9 @@ import (
 	"sync"
 	"time"
 
-	echov1 "github.com/fugue-rpc/fugue/echo/v1"
-	framev1 "github.com/fugue-rpc/fugue/fugue/frame/v1"
-	"github.com/fugue-rpc/fugue/frame"
+	echov1 "github.com/fugue-rpc/fugue-go/echo/v1"
+	framev1 "github.com/fugue-rpc/fugue-go/fugue/frame/v1"
+	"github.com/fugue-rpc/fugue-go/frame"
 	"google.golang.org/protobuf/proto"
 )
 

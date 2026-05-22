@@ -122,7 +122,7 @@ Full spec: [`docs/wire-format.md`](docs/wire-format.md)
 ## Repository layout
 
 ```
-fugue-go/              Go server library (published as github.com/fugue-rpc/fugue)
+fugue-go/              Go server library (published as github.com/fugue-rpc/fugue-go)
   frame/                binary frame codec
   internal/conn/        WebSocket connection manager (stream multiplexer)
   internal/stream/      grpc.ServerStream implementation
@@ -149,7 +149,7 @@ docs/                   Wire format specification
 ## Go server library
 
 ```go
-import "github.com/fugue-rpc/fugue"
+import "github.com/fugue-rpc/fugue-go"
 ```
 
 Minimum Go version: **1.23**. Depends on [`github.com/coder/websocket`](https://github.com/coder/websocket) and `google.golang.org/grpc`.

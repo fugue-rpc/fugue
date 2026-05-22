@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	framev1 "github.com/fugue-rpc/fugue/frame/v1"
-	"github.com/fugue-rpc/fugue/internal/stream"
+	framev1 "github.com/fugue-rpc/fugue-go/frame/v1"
+	"github.com/fugue-rpc/fugue-go/internal/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"

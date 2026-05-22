@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/coder/websocket"
-	"github.com/fugue-rpc/fugue/internal/conn"
-	"github.com/fugue-rpc/fugue/internal/stream"
+	"github.com/fugue-rpc/fugue-go/internal/conn"
+	"github.com/fugue-rpc/fugue-go/internal/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

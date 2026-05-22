@@ -123,7 +123,7 @@ const file_spike_v1_greeter_proto_rawDesc = "" +
 	"\bSayHello\x12\x16.spike.v1.HelloRequest\x1a\x14.spike.v1.HelloReply\x12=\n" +
 	"\vListReplies\x12\x16.spike.v1.HelloRequest\x1a\x14.spike.v1.HelloReply0\x01\x12?\n" +
 	"\rCollectHellos\x12\x16.spike.v1.HelloRequest\x1a\x14.spike.v1.HelloReply(\x01\x128\n" +
-	"\x04Chat\x12\x16.spike.v1.HelloRequest\x1a\x14.spike.v1.HelloReply(\x010\x01B-Z+github.com/fugue-rpc/fugue/spike/v1;spikev1b\x06proto3"
+	"\x04Chat\x12\x16.spike.v1.HelloRequest\x1a\x14.spike.v1.HelloReply(\x010\x01B0Z.github.com/fugue-rpc/fugue-go/spike/v1;spikev1b\x06proto3"
 
 var (
 	file_spike_v1_greeter_proto_rawDescOnce sync.Once

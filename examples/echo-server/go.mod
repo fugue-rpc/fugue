@@ -3,7 +3,7 @@ module github.com/fugue-rpc/echo-server
 go 1.26.1
 
 require (
-	github.com/fugue-rpc/fugue v0.0.0
+	github.com/fugue-rpc/fugue-go v0.0.0
 	google.golang.org/grpc v1.80.0
 )
 
@@ -16,4 +16,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/fugue-rpc/fugue => ../../fugue-go
+replace github.com/fugue-rpc/fugue-go => ../../fugue-go

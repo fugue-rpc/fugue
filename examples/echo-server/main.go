@@ -8,8 +8,8 @@ import (
 	_ "net/http/pprof" // registers /debug/pprof/ on the default mux
 	"strings"
 
-	echov1 "github.com/fugue-rpc/fugue/echo/v1"
-	"github.com/fugue-rpc/fugue"
+	echov1 "github.com/fugue-rpc/fugue-go/echo/v1"
+	"github.com/fugue-rpc/fugue-go"
 	"google.golang.org/grpc"
 )
 

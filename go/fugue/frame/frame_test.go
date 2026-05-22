@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/fugue-rpc/fugue/frame"
+	"github.com/fugue-rpc/fugue-go/frame"
 )
 
 // allTypes lists every defined frame type so we can verify round-trips for each.

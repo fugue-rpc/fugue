@@ -210,7 +210,7 @@ const file_grpcws_frame_v1_frame_proto_rawDesc = "" +
 	"\btrailers\x18\x03 \x03(\v2).grpcws.frame.v1.EndPayload.TrailersEntryR\btrailers\x1a;\n" +
 	"\rTrailersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B-Z+github.com/fugue-rpc/fugue/frame/v1;framev1b\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B0Z.github.com/fugue-rpc/fugue-go/frame/v1;framev1b\x06proto3"
 
 var (
 	file_grpcws_frame_v1_frame_proto_rawDescOnce sync.Once
