@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/websocket"
 	echov1 "github.com/fugue-rpc/fugue/echo/v1"
-	framev1 "github.com/fugue-rpc/fugue/grpcws/frame/v1"
+	framev1 "github.com/fugue-rpc/fugue/frame/v1"
 	"github.com/fugue-rpc/fugue/frame"
 	"github.com/fugue-rpc/fugue"
 	"google.golang.org/grpc"

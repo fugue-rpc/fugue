@@ -1,5 +1,5 @@
 // Proto schemas for fugue frame payloads.
-// Copied from gen/ts/grpcws/frame/v1/frame_pb.ts so node-server has no
+// Copied from gen/ts/frame/v1/frame_pb.ts so node-server has no
 // dependency on the gen/ directory outside the package.
 /* eslint-disable */
 

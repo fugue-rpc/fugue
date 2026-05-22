@@ -50,7 +50,7 @@ pnpm --filter fugue-demo dev               # http://localhost:5173
 ```bash
 buf generate   # proto/ → go/fugue/ (Go bindings) + gen/ts/ (TypeScript bindings)
 ```
-Note: `buf generate` writes Go output to `go/fugue/`, **not** `wsgrpc-go/`. After running it, manually copy the generated files (`echo/`, `grpcws/`) from `go/fugue/` into `wsgrpc-go/` to keep the publish-ready copy in sync.
+Note: `buf generate` writes Go output to `go/fugue/`, **not** `wsgrpc-go/`. After running it, manually copy the generated files (`echo/`, `frame/`) from `go/fugue/` into `wsgrpc-go/` to keep the publish-ready copy in sync.
 
 Note: The `protoc-gen-fugue` plugin generates `*_fugue.ts` files.
 
