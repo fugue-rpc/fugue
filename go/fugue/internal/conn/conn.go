@@ -1,4 +1,4 @@
-// Package conn manages a single grpcws WebSocket connection.
+// Package conn manages a single fugue WebSocket connection.
 // It multiplexes gRPC streams over the connection and serialises writes.
 package conn
 
@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 
 	"github.com/coder/websocket"
-	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
-	"github.com/wsgrpc/wsgrpc/frame"
-	"github.com/wsgrpc/wsgrpc/internal/stream"
+	framev1 "github.com/fugue-rpc/fugue/grpcws/frame/v1"
+	"github.com/fugue-rpc/fugue/frame"
+	"github.com/fugue-rpc/fugue/internal/stream"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -405,7 +405,7 @@ func (c *Conn) enqueue(buf *[]byte, done chan<- error) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
 			frameBufPool.Put(buf)
-			err := fmt.Errorf("wsgrpc: connection closed")
+			err := fmt.Errorf("fugue: connection closed")
 			if done != nil {
 				done <- err
 			}
@@ -417,7 +417,7 @@ func (c *Conn) enqueue(buf *[]byte, done chan<- error) (retErr error) {
 		return nil
 	case <-c.connClosed:
 		frameBufPool.Put(buf)
-		err := fmt.Errorf("wsgrpc: connection closed")
+		err := fmt.Errorf("fugue: connection closed")
 		if done != nil {
 			done <- err
 		}

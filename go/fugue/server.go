@@ -1,7 +1,7 @@
-// Package wsgrpc implements a gRPC-over-WebSocket server.
+// Package fugue implements a gRPC-over-WebSocket server.
 // Handlers registered via RegisterService are called with standard
 // grpc.ServerStream / context.Context — no handler changes required.
-package wsgrpc
+package fugue
 
 import (
 	"log/slog"
@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/coder/websocket"
-	"github.com/wsgrpc/wsgrpc/internal/conn"
-	"github.com/wsgrpc/wsgrpc/internal/stream"
+	"github.com/fugue-rpc/fugue/internal/conn"
+	"github.com/fugue-rpc/fugue/internal/stream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

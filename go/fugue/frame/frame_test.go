@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/wsgrpc/wsgrpc/frame"
+	"github.com/fugue-rpc/fugue/frame"
 )
 
 // allTypes lists every defined frame type so we can verify round-trips for each.
@@ -22,7 +22,7 @@ var allTypes = []struct {
 // TestRoundTrip encodes then decodes a frame for every type and verifies
 // the fields are preserved exactly.
 func TestRoundTrip(t *testing.T) {
-	payload := []byte("hello grpcws")
+	payload := []byte("hello fugue")
 
 	for _, tc := range allTypes {
 		t.Run(tc.name, func(t *testing.T) {

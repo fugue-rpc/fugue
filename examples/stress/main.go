@@ -188,7 +188,7 @@ func newConn(ctx context.Context, addr string) (*connState, error) {
 		return nil, err
 	}
 	// Match the server's read limit so large payloads aren't rejected by the
-	// WebSocket layer before the grpcws frame decoder can validate them.
+	// WebSocket layer before the fugue frame decoder can validate them.
 	ws.SetReadLimit(4*1024*1024 + 9) // MaxPayloadSize + HeaderSize
 	c := &connState{
 		ws:    ws,

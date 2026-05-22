@@ -1,4 +1,4 @@
-// Package frame implements the grpcws binary framing protocol.
+// Package frame implements the fugue binary framing protocol.
 // See docs/wire-format.md for the full specification.
 package frame
 
@@ -27,7 +27,7 @@ var (
 	ErrShortPayload   = errors.New("frame: buffer shorter than declared payload length")
 )
 
-// Frame is a decoded grpcws frame.
+// Frame is a decoded fugue frame.
 type Frame struct {
 	Type     uint8
 	StreamID uint32

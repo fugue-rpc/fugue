@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/wsgrpc/wsgrpc/frame"
-	"github.com/wsgrpc/wsgrpc/internal/conn"
-	"github.com/wsgrpc/wsgrpc/internal/stream"
+	"github.com/fugue-rpc/fugue/frame"
+	"github.com/fugue-rpc/fugue/internal/conn"
+	"github.com/fugue-rpc/fugue/internal/stream"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )

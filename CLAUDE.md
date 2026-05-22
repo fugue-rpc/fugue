@@ -48,9 +48,9 @@ pnpm --filter fugue-demo dev               # http://localhost:5173
 
 ### Code generation
 ```bash
-buf generate   # proto/ → go/wsgrpc/ (Go bindings) + gen/ts/ (TypeScript bindings)
+buf generate   # proto/ → go/fugue/ (Go bindings) + gen/ts/ (TypeScript bindings)
 ```
-Note: `buf generate` writes Go output to `go/wsgrpc/`, **not** `wsgrpc-go/`. After running it, manually copy the generated files (`echo/`, `grpcws/`) from `go/wsgrpc/` into `wsgrpc-go/` to keep the publish-ready copy in sync.
+Note: `buf generate` writes Go output to `go/fugue/`, **not** `wsgrpc-go/`. After running it, manually copy the generated files (`echo/`, `grpcws/`) from `go/fugue/` into `wsgrpc-go/` to keep the publish-ready copy in sync.
 
 Note: The `protoc-gen-fugue` plugin generates `*_fugue.ts` files.
 
@@ -58,9 +58,9 @@ Note: The `protoc-gen-fugue` plugin generates `*_fugue.ts` files.
 
 ### Two Go modules
 
-`go/wsgrpc/` and `wsgrpc-go/` both declare `module github.com/fugue-rpc/fugue`. `wsgrpc-go/` is the canonical, publish-ready copy (has its own git repo and README). `go/wsgrpc/` is the dev working copy and also contains `spike/` (experimental proto bindings not meant for publish).
+`go/fugue/` and `wsgrpc-go/` both declare `module github.com/fugue-rpc/fugue`. `wsgrpc-go/` is the canonical, publish-ready copy (has its own git repo and README). `go/fugue/` is the dev working copy and also contains `spike/` (experimental proto bindings not meant for publish).
 
-`go.work` and all example `go.mod` replace directives point at `wsgrpc-go/` — that is the copy all tests run against. If you edit Go source, edit in `wsgrpc-go/`; `go/wsgrpc/` drifts unless manually synced.
+`go.work` and all example `go.mod` replace directives point at `wsgrpc-go/` — that is the copy all tests run against. If you edit Go source, edit in `wsgrpc-go/`; `go/fugue/` drifts unless manually synced.
 
 `wsgrpc-go/` is also a **separate git repository** (has its own `.git/`). Changes made there need to be committed and pushed independently from this monorepo.
 

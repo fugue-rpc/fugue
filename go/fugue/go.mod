@@ -1,4 +1,4 @@
-module github.com/wsgrpc/wsgrpc
+module github.com/fugue-rpc/fugue
 
 go 1.26.1
 

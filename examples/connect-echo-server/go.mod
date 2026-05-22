@@ -1,4 +1,4 @@
-module github.com/grpcws/connect-echo-server
+module github.com/fugue-rpc/connect-echo-server
 
 go 1.26.1
 

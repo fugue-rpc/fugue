@@ -1,4 +1,4 @@
-module github.com/grpcws/stress
+module github.com/fugue-rpc/stress
 
 go 1.26.1
 

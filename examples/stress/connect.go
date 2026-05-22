@@ -61,7 +61,7 @@ func runConnectMode(ctx context.Context) {
 
 	// For H1: single pooled client with MaxIdleConnsPerHost = total goroutines.
 	// For H2: one client per "conn" so each gets its own TCP connection,
-	//         matching the grpcws topology of numConns connections.
+	//         matching the fugue topology of numConns connections.
 	clients := make([]*http.Client, *numConns)
 	for i := range clients {
 		clients[i] = newHTTPClient(*mode)

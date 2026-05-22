@@ -1,4 +1,4 @@
-package wsgrpc_test
+package fugue_test
 
 import (
 	"context"
@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	echov1 "github.com/wsgrpc/wsgrpc/echo/v1"
-	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
-	"github.com/wsgrpc/wsgrpc/frame"
-	"github.com/wsgrpc/wsgrpc"
+	echov1 "github.com/fugue-rpc/fugue/echo/v1"
+	framev1 "github.com/fugue-rpc/fugue/grpcws/frame/v1"
+	"github.com/fugue-rpc/fugue/frame"
+	"github.com/fugue-rpc/fugue"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
@@ -70,7 +70,7 @@ func (e *echoImpl) EchoBidi(stream grpc.BidiStreamingServer[echov1.Msg, echov1.M
 
 func newEchoServer(t testing.TB) *httptest.Server {
 	t.Helper()
-	srv := wsgrpc.NewServer()
+	srv := fugue.NewServer()
 	echov1.RegisterEchoServer(srv, &echoImpl{})
 	hs := httptest.NewServer(srv)
 	t.Cleanup(hs.Close)
@@ -81,7 +81,7 @@ func wsURL(srv *httptest.Server) string {
 	return strings.Replace(srv.URL, "http://", "ws://", 1)
 }
 
-// testConn is a minimal WebSocket client that sends and receives grpcws frames.
+// testConn is a minimal WebSocket client that sends and receives fugue frames.
 // frameBuf holds decoded frames that arrived in the same coalesced WebSocket
 // message as a previously consumed frame; it is drained before the next Read.
 type testConn struct {
@@ -297,7 +297,7 @@ func TestUnimplementedMethod(t *testing.T) {
 func TestMaxConcurrentStreams(t *testing.T) {
 	const limit = 2
 
-	s := wsgrpc.NewServer(wsgrpc.WithMaxConcurrentStreams(limit))
+	s := fugue.NewServer(fugue.WithMaxConcurrentStreams(limit))
 	echov1.RegisterEchoServer(s, &echoImpl{})
 	hs := httptest.NewServer(s)
 	t.Cleanup(hs.Close)

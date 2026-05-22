@@ -1,4 +1,4 @@
-grpcws vs Connect-RPC comparison benchmark
+fugue vs Connect-RPC comparison benchmark
 Platform: Windows 11, i7-11700F, Go 1.26
 Date: 2026-04-24
 Servers: examples/echo-server (:8080) vs examples/connect-echo-server (:8090)
@@ -8,20 +8,20 @@ Payload: Msg{value:"stress"} — proto-encoded ~7 bytes
 
 ── Primary comparison: unary throughput (stress tool, Windows loopback) ────────
 
-  scenario            grpcws          Connect-H1 (HTTP/1.1)
+  scenario            fugue          Connect-H1 (HTTP/1.1)
   ─────────────────   ─────────────   ─────────────────────
   1 × 1 (seq.)        ~8,000 RPC/s    ~7,900 RPC/s
   10 × 10  (100)      60,164 RPC/s    59,942 RPC/s
   50 × 20 (1000)      76,037 RPC/s    40,658 RPC/s  ①
 
-① At 1000 goroutines, grpcws uses 50 WebSocket connections (20 multiplexed streams
+① At 1000 goroutines, fugue uses 50 WebSocket connections (20 multiplexed streams
   each). Connect-H1 needs ~1000 separate HTTP/1.1 keep-alive connections.  The OS
   TCP stack starts struggling at this scale on Windows: connect-h1 p99 spiked to
-  10.47 s and max to the same, vs grpcws p99 = 72.56 ms.
+  10.47 s and max to the same, vs fugue p99 = 72.56 ms.
 
 ── Latency detail at 100 concurrent streams (10 × 10, stress tool) ────────────
 
-  metric   grpcws    Connect-H1
+  metric   fugue    Connect-H1
   ───────  ────────  ──────────
   mean     1.40 ms   1.67 ms
   p50      1.01 ms   1.01 ms
@@ -34,7 +34,7 @@ Payload: Msg{value:"stress"} — proto-encoded ~7 bytes
 
 ── Latency detail at 1000 concurrent streams (50 × 20, stress tool) ───────────
 
-  metric   grpcws    Connect-H1
+  metric   fugue    Connect-H1
   ───────  ────────  ──────────
   mean     12.37 ms  24.40 ms
   p50      8.25 ms   11.05 ms
@@ -59,11 +59,11 @@ Payload: Msg{value:"stress"} — proto-encoded ~7 bytes
 
 ── Key findings ────────────────────────────────────────────────────────────────
 
-1. Equivalent at moderate concurrency: at ≤100 concurrent streams, grpcws and
+1. Equivalent at moderate concurrency: at ≤100 concurrent streams, fugue and
    Connect-H1 deliver the same throughput (~60 k RPC/s) and nearly identical
    latency. Neither has a meaningful advantage for "normal" web service usage.
 
-2. grpcws wins at high concurrency: at 1000 concurrent streams, grpcws is 1.9×
+2. fugue wins at high concurrency: at 1000 concurrent streams, fugue is 1.9×
    faster (76 k vs 41 k RPC/s) with far better tail latency.  The root cause is
    connection count: WebSocket multiplexing keeps TCP connections at O(conns),
    while HTTP/1.1 keep-alive needs O(conns × streams) connections.
@@ -72,12 +72,12 @@ Payload: Msg{value:"stress"} — proto-encoded ~7 bytes
    consistently slower than HTTP/1.1 for loopback traffic (~10 k vs 60 k RPC/s
    at 10×10). H2's multiplexing advantage requires higher latency links.
 
-4. Unique grpcws capability: Connect-ES in a browser uses the Fetch API, which
+4. Unique fugue capability: Connect-ES in a browser uses the Fetch API, which
    buffers the entire request body before sending. This makes client-streaming
-   and bidi-streaming impossible with Connect-ES. grpcws is the only protocol
+   and bidi-streaming impossible with Connect-ES. fugue is the only protocol
    that supports all four gRPC RPC kinds in browser environments.
 
 5. Measurement note: the stress tool runs on Windows loopback (no network hop).
    wrk runs in WSL, adding ~1–3 ms base overhead.  Both tools confirm similar
    Connect server throughput ceilings; use stress-tool numbers for
-   grpcws-vs-Connect comparisons.
+   fugue-vs-Connect comparisons.

@@ -1,4 +1,4 @@
-# grpcws demo
+# fugue demo
 
 React app showing all four RPC kinds (unary, server-streaming, client-streaming, bidi) running live against the echo server.
 
@@ -24,7 +24,7 @@ Start the dev server in another:
 
 ```bash
 # from repo root
-pnpm --filter grpcws-demo dev
+pnpm --filter fugue-demo dev
 ```
 
 Then open http://localhost:5173. The Vite proxy forwards `/wsgrpc` WebSocket traffic to `localhost:8080` so no CORS configuration is needed.

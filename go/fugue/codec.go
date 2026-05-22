@@ -1,4 +1,4 @@
-package wsgrpc
+package fugue
 
 // Codec is the interface for pluggable message serialisation on user-defined
 // message types. Implement this to use vtprotobuf or another marshaller.

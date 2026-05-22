@@ -1,4 +1,4 @@
-grpcws stress test results
+fugue stress test results
 Platform: Windows 11, i7-11700F, Go 1.26
 Date: 2026-04-24
 Echo server: examples/echo-server (single process, no tuning)

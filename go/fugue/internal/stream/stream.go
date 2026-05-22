@@ -6,8 +6,8 @@ import (
 	"io"
 	"sync"
 
-	framev1 "github.com/wsgrpc/wsgrpc/grpcws/frame/v1"
-	"github.com/wsgrpc/wsgrpc/frame"
+	framev1 "github.com/fugue-rpc/fugue/grpcws/frame/v1"
+	"github.com/fugue-rpc/fugue/frame"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -23,7 +23,7 @@ type Sink interface {
 
 // MsgCodec is the pluggable serialisation interface for user message types.
 // When nil (the default), Stream falls back to proto.Marshal / proto.Unmarshal.
-// Set via SetCodec; satisfies wsgrpc.Codec (a superset with a Name method).
+// Set via SetCodec; satisfies fugue.Codec (a superset with a Name method).
 type MsgCodec interface {
 	Marshal(v any) ([]byte, error)
 	Unmarshal(data []byte, v any) error
@@ -152,7 +152,7 @@ func (s *Stream) SetHeader(md metadata.MD) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.headerSent {
-		return errors.New("wsgrpc: headers already sent")
+		return errors.New("fugue: headers already sent")
 	}
 	s.header = metadata.Join(s.header, md)
 	return nil
@@ -162,7 +162,7 @@ func (s *Stream) SendHeader(md metadata.MD) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.headerSent {
-		return errors.New("wsgrpc: headers already sent")
+		return errors.New("fugue: headers already sent")
 	}
 	s.header = metadata.Join(s.header, md)
 	return s.flushHeaderLocked()
