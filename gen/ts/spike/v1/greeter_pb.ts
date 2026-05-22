@@ -47,7 +47,7 @@ export const HelloReplySchema: GenMessage<HelloReply> = /*@__PURE__*/
   messageDesc(file_spike_v1_greeter, 1);
 
 /**
- * Spike B: minimal proto for validating protoc-gen-wsgrpc output.
+ * Spike B: minimal proto for validating protoc-gen-fugue output.
  * Covers all 4 method kinds so we can verify methodKind dispatch.
  *
  * @generated from service spike.v1.Greeter

@@ -4,7 +4,7 @@ package spike.v1;
 
 option go_package = "github.com/fugue-rpc/fugue/spike/v1;spikev1";
 
-// Spike B: minimal proto for validating protoc-gen-wsgrpc output.
+// Spike B: minimal proto for validating protoc-gen-fugue output.
 // Covers all 4 method kinds so we can verify methodKind dispatch.
 service Greeter {
   // unary

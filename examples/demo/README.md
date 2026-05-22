@@ -27,4 +27,4 @@ Start the dev server in another:
 pnpm --filter fugue-demo dev
 ```
 
-Then open http://localhost:5173. The Vite proxy forwards `/wsgrpc` WebSocket traffic to `localhost:8080` so no CORS configuration is needed.
+Then open http://localhost:5173. The Vite proxy forwards `/fugue` WebSocket traffic to `localhost:8080` so no CORS configuration is needed.

@@ -134,7 +134,7 @@ const file_echo_v1_echo_proto_rawDesc = "" +
 	"EchoStream\x12\f.echo.v1.Msg\x1a\f.echo.v1.Msg0\x01\x12+\n" +
 	"\vEchoCollect\x12\f.echo.v1.Msg\x1a\f.echo.v1.Msg(\x01\x12*\n" +
 	"\bEchoBidi\x12\f.echo.v1.Msg\x1a\f.echo.v1.Msg(\x010\x01\x122\n" +
-	"\vEchoStreamN\x12\x13.echo.v1.StreamNReq\x1a\f.echo.v1.Msg0\x01B)Z'github.com/wsgrpc/wsgrpc/echo/v1;echov1b\x06proto3"
+	"\vEchoStreamN\x12\x13.echo.v1.StreamNReq\x1a\f.echo.v1.Msg0\x01B+Z)github.com/fugue-rpc/fugue/echo/v1;echov1b\x06proto3"
 
 var (
 	file_echo_v1_echo_proto_rawDescOnce sync.Once

@@ -55,7 +55,7 @@ export class FugueServer {
   /**
    * Attach to an existing Node.js HTTP/HTTPS server.
    * Registers an `upgrade` event handler that handles WebSocket upgrades.
-   * Pass `path` to restrict handling to a specific URL prefix (e.g. `/wsgrpc/`).
+   * Pass `path` to restrict handling to a specific URL prefix (e.g. `/fugue/`).
    */
   attach(server: UpgradeableServer, path?: string): this {
     server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {

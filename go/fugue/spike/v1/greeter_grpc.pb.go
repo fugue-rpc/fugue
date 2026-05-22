@@ -29,7 +29,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// Spike B: minimal proto for validating protoc-gen-wsgrpc output.
+// Spike B: minimal proto for validating protoc-gen-fugue output.
 // Covers all 4 method kinds so we can verify methodKind dispatch.
 type GreeterClient interface {
 	// unary
@@ -109,7 +109,7 @@ type Greeter_ChatClient = grpc.BidiStreamingClient[HelloRequest, HelloReply]
 // All implementations must embed UnimplementedGreeterServer
 // for forward compatibility.
 //
-// Spike B: minimal proto for validating protoc-gen-wsgrpc output.
+// Spike B: minimal proto for validating protoc-gen-fugue output.
 // Covers all 4 method kinds so we can verify methodKind dispatch.
 type GreeterServer interface {
 	// unary
