@@ -16,4 +16,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/fugue-rpc/fugue => ../../wsgrpc-go
+replace github.com/fugue-rpc/fugue => ../../fugue-go

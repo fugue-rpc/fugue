@@ -122,7 +122,7 @@ Full spec: [`docs/wire-format.md`](docs/wire-format.md)
 ## Repository layout
 
 ```
-wsgrpc-go/              Go server library (published as github.com/fugue-rpc/fugue)
+fugue-go/              Go server library (published as github.com/fugue-rpc/fugue)
   frame/                binary frame codec
   internal/conn/        WebSocket connection manager (stream multiplexer)
   internal/stream/      grpc.ServerStream implementation
@@ -208,7 +208,7 @@ When no custom codec is set, `SendMsg` uses a zero-copy fast path that marshals 
 ### Running tests
 
 ```bash
-go test ./wsgrpc-go/... -race
+go test ./fugue-go/... -race
 ```
 
 ---
@@ -281,7 +281,7 @@ Install [buf](https://buf.build) and run:
 buf generate
 ```
 
-This generates protobuf bindings into `gen/ts/` and `wsgrpc-go/`. The `protoc-gen-fugue` plugin generates typed TypeScript client stubs (`*_fugue.ts`).
+This generates protobuf bindings into `gen/ts/` and `fugue-go/`. The `protoc-gen-fugue` plugin generates typed TypeScript client stubs (`*_fugue.ts`).
 
 ---
 

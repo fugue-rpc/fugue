@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 fugue enables all four gRPC RPC kinds (unary, server-streaming, client-streaming, bidirectional) from the browser over a single long-lived WebSocket connection. gRPC-Web and Connect-ES cannot do client-streaming or bidi from browsers because the Fetch API buffers request bodies; this library closes that gap.
 
 Components:
-- `wsgrpc-go/` — Go server library, published as `github.com/fugue-rpc/fugue`
+- `fugue-go/` — Go server library, published as `github.com/fugue-rpc/fugue`
 - `packages/transport/` — TypeScript browser client (`@fugue-rpc/transport`)
 - `packages/react/` — React hooks (`@fugue-rpc/react`)
 - `packages/protoc-gen-fugue/` — protoc plugin that generates typed TypeScript clients
@@ -21,10 +21,10 @@ Components:
 ### Go
 ```bash
 # All tests (run from repo root — go.work covers workspace)
-go test ./wsgrpc-go/... -race
+go test ./fugue-go/... -race
 
 # Single test
-go test ./wsgrpc-go/... -run TestName -race
+go test ./fugue-go/... -run TestName -race
 
 # Run examples
 go run ./examples/echo-server        # gRPC-over-WS on :8080/fugue/
@@ -50,7 +50,7 @@ pnpm --filter fugue-demo dev               # http://localhost:5173
 ```bash
 buf generate   # proto/ → go/fugue/ (Go bindings) + gen/ts/ (TypeScript bindings)
 ```
-Note: `buf generate` writes Go output to `go/fugue/`, **not** `wsgrpc-go/`. After running it, manually copy the generated files (`echo/`, `frame/`) from `go/fugue/` into `wsgrpc-go/` to keep the publish-ready copy in sync.
+Note: `buf generate` writes Go output to `go/fugue/`, **not** `fugue-go/`. After running it, manually copy the generated files (`echo/`, `frame/`) from `go/fugue/` into `fugue-go/` to keep the publish-ready copy in sync.
 
 Note: The `protoc-gen-fugue` plugin generates `*_fugue.ts` files.
 
@@ -58,11 +58,11 @@ Note: The `protoc-gen-fugue` plugin generates `*_fugue.ts` files.
 
 ### Two Go modules
 
-`go/fugue/` and `wsgrpc-go/` both declare `module github.com/fugue-rpc/fugue`. `wsgrpc-go/` is the canonical, publish-ready copy (has its own git repo and README). `go/fugue/` is the dev working copy and also contains `spike/` (experimental proto bindings not meant for publish).
+`go/fugue/` and `fugue-go/` both declare `module github.com/fugue-rpc/fugue`. `fugue-go/` is the canonical, publish-ready copy (has its own git repo and README). `go/fugue/` is the dev working copy and also contains `spike/` (experimental proto bindings not meant for publish).
 
-`go.work` and all example `go.mod` replace directives point at `wsgrpc-go/` — that is the copy all tests run against. If you edit Go source, edit in `wsgrpc-go/`; `go/fugue/` drifts unless manually synced.
+`go.work` and all example `go.mod` replace directives point at `fugue-go/` — that is the copy all tests run against. If you edit Go source, edit in `fugue-go/`; `go/fugue/` drifts unless manually synced.
 
-`wsgrpc-go/` is also a **separate git repository** (has its own `.git/`). Changes made there need to be committed and pushed independently from this monorepo.
+`fugue-go/` is also a **separate git repository** (has its own `.git/`). Changes made there need to be committed and pushed independently from this monorepo.
 
 ### Wire protocol
 
@@ -72,17 +72,17 @@ Every frame is a **9-byte header** (1 byte type, 4 bytes stream_id big-endian, 4
 
 BEGIN / END / HEADER carry protobuf payloads (`BeginPayload`, `EndPayload`, `HeaderPayload` defined in `proto/grpcws/frame/v1/frame.proto`). MSG carries a raw serialized user message. Multiple frames can be coalesced into one WebSocket binary message; receivers must call `DecodeAll` / equivalent.
 
-Understanding the protocol requires reading `docs/wire-format.md`, `wsgrpc-go/frame/frame.go`, and `proto/grpcws/frame/v1/frame.proto` together.
+Understanding the protocol requires reading `docs/wire-format.md`, `fugue-go/frame/frame.go`, and `proto/grpcws/frame/v1/frame.proto` together.
 
 Note: The protobuf package is still `grpcws.frame.v1` — this is part of the wire format and is not renamed.
 
 ### Go server internals
 
-The entry point is `wsgrpc-go/server.go`. It upgrades HTTP → WebSocket and creates a `conn.Conn` (`wsgrpc-go/internal/conn/conn.go`) which owns the full lifecycle of one connection:
+The entry point is `fugue-go/server.go`. It upgrades HTTP → WebSocket and creates a `conn.Conn` (`fugue-go/internal/conn/conn.go`) which owns the full lifecycle of one connection:
 
 - **Read loop** (`conn.Serve`): single goroutine, calls `frame.DecodeAll` on each WebSocket message, dispatches frames to per-stream handlers. **The read loop must never block** — this is a correctness invariant, not a performance note. If a stream's recv buffer is full, `Deliver()` returns false, that stream is reset with RESOURCE_EXHAUSTED, and the read loop continues immediately. A blocking `Deliver()` would cause head-of-line blocking across all streams on the connection, defeating the library's core purpose.
 - **Writer goroutine**: single goroutine per connection, drains a buffered `writeQueue` channel, coalesces up to 32 frames or 64 KiB into one `ws.Write` call. MSG frames are fire-and-forget enqueues; HEADER and END frames block the caller on a `done` channel until the write completes.
-- **Stream** (`wsgrpc-go/internal/stream/stream.go`): implements `grpc.ServerStream`. `SendEnd` is idempotent via `sync.Once` so it can be called from both the read loop (on buffer overflow) and the handler dispatch path safely. `SendMsg` auto-flushes a HEADER frame on its first call.
+- **Stream** (`fugue-go/internal/stream/stream.go`): implements `grpc.ServerStream`. `SendEnd` is idempotent via `sync.Once` so it can be called from both the read loop (on buffer overflow) and the handler dispatch path safely. `SendMsg` auto-flushes a HEADER frame on its first call.
 - **Origin check**: performed at WebSocket upgrade time in `server.go`. Requests with a disallowed `Origin` header are hard-rejected (connection closed). Requests with *no* `Origin` header are allowed — non-browser clients (Go test clients, stress tool) don't send one.
 
 ### TypeScript client internals
@@ -106,7 +106,7 @@ pnpm --filter @fugue-rpc/transport test:e2e
 
 ### Codec interface
 
-`wsgrpc-go/codec.go` defines a `Codec` interface (`Marshal`, `Unmarshal`, `Name`). When no custom codec is set, `SendMsg` uses a zero-copy fast path that marshals proto bytes directly into a pooled frame buffer. Custom codecs (e.g. vtprotobuf) can be injected via `WithCodec()`.
+`fugue-go/codec.go` defines a `Codec` interface (`Marshal`, `Unmarshal`, `Name`). When no custom codec is set, `SendMsg` uses a zero-copy fast path that marshals proto bytes directly into a pooled frame buffer. Custom codecs (e.g. vtprotobuf) can be injected via `WithCodec()`.
 
 The TypeScript equivalent is the decoder closure passed to each call factory: `(bytes: Uint8Array) => T`.
 
