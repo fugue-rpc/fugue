@@ -1,5 +1,5 @@
-// Spike A: validates the grpc.ServiceDesc dispatch contract without any
-// WebSocket or HTTP involvement. These tests remain as regression tests.
+// Validates the grpc.ServiceDesc dispatch contract without any
+// WebSocket or HTTP involvement.
 package stream_test
 
 import (
