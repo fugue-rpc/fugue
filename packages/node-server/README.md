@@ -127,6 +127,14 @@ Use [`@fugue-rpc/transport`](../transport/) to call this server from a browser o
 
 `ServiceDefinition` is structurally compatible with the output of `@grpc/grpc-js`'s protoc plugin. Pass the generated definition object directly to `addService()` with no adapter needed.
 
+## Performance
+
+Benchmark results and comparison against the leading HTTP-based alternative (unary throughput, server-streaming throughput, latency percentiles) are published in the repository:
+
+[`benchmarks/`](https://github.com/fugue-rpc/fugue/tree/main/benchmarks)
+
+Highlights: equivalent throughput at moderate concurrency; 1.9× faster unary and 24× higher server-streaming throughput at high concurrency; client-streaming and bidi-streaming have no equivalent in any leading browser RPC library.
+
 ## Wire protocol
 
 The server implements the fugue framing protocol: a 9-byte binary header per frame (1-byte type, 4-byte stream ID, 4-byte payload length) with five frame types (`BEGIN`, `MSG`, `END`, `RESET`, `HEADER`). Full spec: `docs/wire-format.md`.
