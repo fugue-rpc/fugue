@@ -8,6 +8,9 @@ export default defineConfig({
     },
   },
   test: {
+    include: ["src/e2e-stress.test.tsx"],
+    globalSetup: ["./e2e-global-setup.ts"],
     environment: "jsdom",
+    testTimeout: 120_000,
   },
 });
