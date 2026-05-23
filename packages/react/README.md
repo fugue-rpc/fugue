@@ -134,6 +134,28 @@ function Greet() {
 
 All hooks are fully generic. TypeScript infers `Req` and `Res` from the call factory you provide — no manual type parameters needed in most cases.
 
+## Performance
+
+React hook numbers (jsdom + `act()` overhead, loopback echo server):
+
+| Hook | Scenario | Throughput |
+|------|----------|------------|
+| `useUnary` | 50 sequential calls | 13 RPC/s ¹ |
+| `useServerStream` | 10 concurrent streams | 541 msg/s |
+| `useBidiStream` | 5 concurrent bidi streams | 330 msg/s |
+
+¹ Sequential `useUnary` is bound by React's synchronous re-render cycle (one
+state transition per call), not the transport. The underlying transport delivers
+~60,000 unary RPC/s at 100 concurrent streams.
+
+**Transport-level vs leading HTTP-based alternative:**
+- Unary at moderate concurrency: equivalent (~60 k RPC/s each)
+- Unary at 1,000 concurrent streams: **1.9× faster**, p99 latency **144× lower** (73 ms vs 10,470 ms)
+- Server-streaming throughput: **24× higher**
+- Client-streaming and bidirectional streaming: **no equivalent exists** in any leading browser RPC library (the Fetch API prevents it)
+
+Full numbers: [`benchmarks/react-results.md`](../../benchmarks/react-results.md)
+
 ## License
 
 MIT
