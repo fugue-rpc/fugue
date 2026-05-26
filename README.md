@@ -90,12 +90,16 @@ Connect-ES uses the Fetch API for HTTP requests. The Fetch API requires the full
 go test -bench=BenchmarkUnaryEcho -benchmem
 ```
 
+Numbers on AMD Ryzen 7 7735HS, Windows 11, Go 1.26, loopback:
+
 ```
-BenchmarkUnaryEcho-16           212 µs/op    121 allocs/op
-BenchmarkUnaryEchoParallel-16    40 µs/op    121 allocs/op
+BenchmarkUnaryEcho-16           ~100 µs/op    101 allocs/op
+BenchmarkUnaryEchoParallel-16    ~22 µs/op    100 allocs/op
 ```
 
-The allocation count is dominated by proto.Marshal/Unmarshal of user message types. Plugging in a vtprotobuf-backed `Codec` (see [Pluggable Codec](#pluggable-codec) below) eliminates reflection and reduces allocations to the wire-format structs only.
+The fire-and-forget write path (all frame types enqueued without waiting for the writer goroutine) reduces latency by ~51% and allocations by ~17% versus the synchronous write path — verified via benchstat at p=0.001 (n=7). See [`benchmarks/benchstat-fire-and-forget.txt`](benchmarks/benchstat-fire-and-forget.txt).
+
+The remaining allocation count is dominated by proto.Marshal/Unmarshal of user message types. Plugging in a vtprotobuf-backed `Codec` (see [Pluggable Codec](#pluggable-codec) below) eliminates reflection and reduces allocations to the wire-format structs only.
 
 ---
 

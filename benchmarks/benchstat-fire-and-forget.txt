@@ -1,0 +1,46 @@
+Benchstat comparison: baseline (synchronous HEADER/END) vs optimized (fire-and-forget)
+Platform: Windows 11, AMD Ryzen 7 7735HS, Go 1.26, loopback
+Commit: bbbe8df (baseline) → 4f85ed3 (optimized, perf/fire-and-forget merged to main)
+Flags: -benchtime=2s -count=7 -benchmem
+
+Changes measured:
+  1. writeItem.done chan<- error removed — all frame types now fire-and-forget
+  2. DefaultRecvBufSize 64 → 256
+
+goarch: amd64
+pkg: github.com/fugue-rpc/fugue-go
+cpu: AMD Ryzen 7 7735HS with Radeon Graphics
+
+                     │   baseline    │              optimized               │
+                     │    sec/op     │    sec/op     vs base                │
+UnaryEcho-16            203.54µ ± 43%   98.76µ ±  8%  -51.48% (p=0.001 n=7)
+UnaryEchoParallel-16     28.66µ ± 11%   22.25µ ±  6%  -22.35% (p=0.001 n=7)
+BidiEcho-16              64.22µ ± 13%   64.15µ ± 11%        ~ (p=0.710 n=7)
+geomean                  72.09µ         52.04µ        -27.80%
+
+                     │   baseline    │              optimized               │
+                     │   allocs/op   │  allocs/op    vs base                │
+UnaryEcho-16              121.0 ± 0%    100.0 ± 1%  -17.36% (p=0.001 n=7)
+UnaryEchoParallel-16      121.0 ± 0%    100.0 ± 0%  -17.36% (p=0.001 n=7)
+BidiEcho-16                41.0 ± 0%     41.0 ± 0%        ~ (p=1.000 n=7)
+geomean                    84.36         74.29       -11.93%
+
+pkg: github.com/fugue-rpc/fugue-go/internal/conn
+
+                 │   baseline    │              optimized               │
+                 │    sec/op     │    sec/op     vs base                │
+ConnRoundTrip-16    125.7µ ± 11%   110.8µ ±  7%  -11.88% (p=0.001 n=7)
+
+                 │   baseline    │              optimized               │
+                 │   allocs/op   │  allocs/op    vs base                │
+ConnRoundTrip-16    125.0 ± 1%    113.0 ± 0%   -9.60% (p=0.001 n=7)
+
+Notes:
+- UnaryEcho baseline variance ±43% reflects the done-channel sync contention with the
+  writer goroutine — some iterations got lucky scheduling, others didn't. The optimized
+  path has ±8% variance, confirming the contention is gone.
+- BidiEcho shows no statistically significant change (p=0.710). BidiEcho sends many MSG
+  frames relative to HEADER/END frames, so removing the sync on those two frame types
+  has minimal impact on its critical path.
+- B/op increases ~33-39% on unary paths: the WriteMsgProto pooled buffer pre-grows to
+  an estimated payload size, trading larger but fewer allocations.
