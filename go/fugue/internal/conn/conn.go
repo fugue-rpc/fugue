@@ -31,11 +31,9 @@ var frameBufPool = sync.Pool{
 }
 
 // writeItem is a single encoded frame waiting to be sent by the writer goroutine.
-// done is nil for fire-and-forget frames (MSG); non-nil for frames that require
-// delivery confirmation before the caller unblocks (HEADER, END).
+// All frame types are fire-and-forget; ordering is preserved by the FIFO queue.
 type writeItem struct {
-	buf  *[]byte      // pooled; returned to frameBufPool after ws.Write
-	done chan<- error // nil → fire-and-forget; non-nil → synchronous write
+	buf *[]byte // pooled; returned to frameBufPool after ws.Write
 }
 
 // Conn manages one WebSocket connection and the streams multiplexed over it.
@@ -95,12 +93,9 @@ func (c *Conn) Serve(ctx context.Context) error {
 			if len(pending) == 0 {
 				return
 			}
-			err := c.ws.Write(context.Background(), websocket.MessageBinary, coalesceBuf)
+			_ = c.ws.Write(context.Background(), websocket.MessageBinary, coalesceBuf)
 			for _, item := range pending {
 				frameBufPool.Put(item.buf)
-				if item.done != nil {
-					item.done <- err
-				}
 			}
 			// Reset for next batch; discard oversized backing arrays.
 			if cap(coalesceBuf) > 256*1024 {
@@ -207,8 +202,7 @@ func (c *Conn) handleBEGIN(ctx context.Context, f frame.Frame) error {
 			StatusCode:    uint32(codes.ResourceExhausted),
 			StatusMessage: "too many concurrent streams",
 		})
-		// Fire-and-forget: do not block the read loop waiting for delivery.
-		c.enqueue(c.encodeFrame(frame.TypeEND, id, endPayload), nil)
+		_ = c.enqueue(c.encodeFrame(frame.TypeEND, id, endPayload))
 		return nil
 	}
 
@@ -297,31 +291,15 @@ func (c *Conn) loadStream(id uint32) (*stream.Stream, bool) {
 
 // WriteFrame implements stream.Sink.
 //
-// For TypeMSG frames the call is fire-and-forget: the frame is enqueued and
-// WriteFrame returns immediately. If the connection has already closed, the
-// frame is silently dropped (consistent with gRPC streaming semantics — there
-// is no per-message delivery guarantee).
-//
-// For TypeHEADER and TypeEND frames WriteFrame blocks until the frame has been
-// written to the wire (or the connection closes), preserving the invariant that
-// SendHeader and SendEnd do not return before the remote peer can see the frame.
+// All frame types are fire-and-forget: the frame is enqueued and WriteFrame
+// returns immediately. Wire order is preserved by the FIFO write queue.
+// If the connection has already closed, the frame is silently dropped.
 func (c *Conn) WriteFrame(typ uint8, streamID uint32, payload []byte) error {
 	if uint32(len(payload)) > frame.MaxPayloadSize {
 		return fmt.Errorf("frame: payload %d bytes exceeds MAX_PAYLOAD_SIZE", len(payload))
 	}
 	buf := c.encodeFrame(typ, streamID, payload)
-
-	if typ == frame.TypeMSG {
-		c.enqueue(buf, nil) // fire-and-forget; errors are silently dropped
-		return nil
-	}
-
-	// HEADER and END: synchronous — block until the writer goroutine delivers.
-	done := make(chan error, 1)
-	if err := c.enqueue(buf, done); err != nil {
-		return err
-	}
-	return <-done
+	return c.enqueue(buf)
 }
 
 // WriteMsgProto is the zero-copy fast path for MSG frames. It marshals msg
@@ -377,8 +355,7 @@ func (c *Conn) WriteMsgProto(streamID uint32, msg proto.Message) error {
 		}
 	}
 
-	c.enqueue(bp, nil)
-	return nil
+	return c.enqueue(bp)
 }
 
 // encodeFrame allocates a pooled buffer and encodes the 9-byte header + payload.
@@ -394,34 +371,24 @@ func (c *Conn) encodeFrame(typ uint8, streamID uint32, payload []byte) *[]byte {
 }
 
 // enqueue sends buf to the write queue. If the connection is closing, the
-// buffer is returned to the pool, done (if non-nil) receives an error, and
-// the error is returned to the caller. For fire-and-forget callers (done==nil)
-// the return value can be ignored.
+// buffer is returned to the pool and an error is returned.
 //
 // The recover() guard handles the rare race where the select picks the
 // writeQueue send case in the same instant that the queue is closed by Serve's
 // deferred cleanup — in that case Go panics on send-to-closed-channel.
-func (c *Conn) enqueue(buf *[]byte, done chan<- error) (retErr error) {
+func (c *Conn) enqueue(buf *[]byte) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
 			frameBufPool.Put(buf)
-			err := fmt.Errorf("fugue: connection closed")
-			if done != nil {
-				done <- err
-			}
-			retErr = err
+			retErr = fmt.Errorf("fugue: connection closed")
 		}
 	}()
 	select {
-	case c.writeQueue <- writeItem{buf: buf, done: done}:
+	case c.writeQueue <- writeItem{buf: buf}:
 		return nil
 	case <-c.connClosed:
 		frameBufPool.Put(buf)
-		err := fmt.Errorf("fugue: connection closed")
-		if done != nil {
-			done <- err
-		}
-		return err
+		return fmt.Errorf("fugue: connection closed")
 	}
 }
 

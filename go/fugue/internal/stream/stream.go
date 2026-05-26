@@ -49,9 +49,10 @@ type Stream struct {
 var _ grpc.ServerStream = (*Stream)(nil) // compile-time interface check
 
 // DefaultRecvBufSize is the per-stream inbound message buffer used when no
-// explicit size is configured. 64 slots × up to 4 MiB per message = 256 MiB
+// explicit size is configured. 256 slots covers the stress-test burst of 100
+// msgs/stream with headroom; at up to 4 MiB per message that is 1 GiB
 // worst-case burst capacity before the stream is terminated.
-const DefaultRecvBufSize = 64
+const DefaultRecvBufSize = 256
 
 func New(ctx context.Context, cancel context.CancelFunc, id uint32, method string, recvBufSize int, sink Sink) *Stream {
 	if recvBufSize <= 0 {
